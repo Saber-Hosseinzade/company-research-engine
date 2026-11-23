@@ -2,6 +2,7 @@
 # Runs every eval in evals/*.json against this branch's CLAUDE.md and .claude/ configuration.
 # Each eval runs Claude Code non-interactively in a scratch worktree and is graded by evals/check.sh.
 # Needs `claude` logged in (locally) or ANTHROPIC_API_KEY (CI). Every run costs tokens.
+# With EVALS_OUT=<dir>, each eval's diff, file status and Claude result are kept in <dir>/<eval name>/.
 set -uo pipefail
 
 root=$(git rev-parse --show-toplevel)
@@ -30,6 +31,14 @@ for eval in "$work"/evals/*.json; do
       --output-format json </dev/null >"$work/result.json"
     "$work/evals/check.sh" "$eval" "$work/result.json"
   ) || failed=$((failed + 1))
+  if [ -n "${EVALS_OUT:-}" ]; then # keep what the run did, so a failure can be diagnosed afterwards
+    out="$EVALS_OUT/$(jq -r '.name' "$eval")"
+    mkdir -p "$out"
+    git -C "$run" add -A -N # include new files in the diff
+    git -C "$run" diff HEAD >"$out/diff.patch"
+    git -C "$run" status --porcelain -uall >"$out/status.txt"
+    cp "$work/result.json" "$out/result.json" 2>/dev/null || true
+  fi
   git worktree remove --force "$run"
 done
 
