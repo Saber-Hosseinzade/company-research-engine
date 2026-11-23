@@ -3,7 +3,10 @@
 # or denies with the route to approval. Non-interactive runs (CI, evals) treat "ask" as deny.
 #   - Edits to the agent's own guardrails and CI: ask.
 #   - git commit/merge/rebase on main: deny (one branch per change).
-#   - git push to main, forced, --all or --mirror: deny; any other push: ask.
+#   - git push to main, forced, --all/--mirror, or to a destination that can't be read
+#     (wildcard, variable, detached HEAD): deny; any other push: ask. Quoted or wrapped pushes
+#     (bash -c, sh -c, $( )) count. A bare push is resolved through @{push}.
+#   - gh pr merge: deny (a person merges pull requests).
 #   - git commit without a GitHub noreply user.email: deny.
 #   - New or removed dependencies: ask (security-policy S12).
 #   - AWS: any profile other than sandbox or region other than eu-central-1: deny;
@@ -46,10 +49,28 @@ case "$tool" in
       decide deny "Commits go on a branch, not main (CLAUDE.md: one branch per change). Run git switch -c <name> first."
     fi
 
-    # Pushes: never to main or forced; any other push asks the person running the session.
-    if [[ "$cmd" =~ (^|[;&|[:space:]])git[[:space:]]+((-[Cc][[:space:]]+[^[:space:]]+|--?[^[:space:]]+)[[:space:]]+)*push([[:space:]][^;&|]*)?([;&|]|$) ]]; then
-      branch=$(git -C "$root" branch --show-current 2>/dev/null || true)
-      read -ra words <<<"${BASH_REMATCH[4]}"
+    # Push and merge rules read the command with quotes and backslashes removed, so a push quoted or
+    # wrapped in bash -c, sh -c or $( ) is still seen (intent/2026-11-23-push-gate/spec.md R2).
+    flat=${cmd//[\'\"\\]/}
+    to_main="Pushes to main are not allowed; main changes only by a reviewed pull request. Push a feature branch and open a PR."
+
+    # Claude opens pull requests but never merges them (R7).
+    if [[ "$flat" =~ (^|[^[:alnum:]_-])gh[[:space:]]+pr[[:space:]]+merge([[:space:]]|$) ]]; then
+      decide deny "Claude does not merge pull requests; a person merges them on GitHub. Ask the user to review and merge the PR."
+    fi
+
+    # Pushes: never to main, forced or to an unreadable destination; any other push asks (R2-R6).
+    push_re='(^|[^[:alnum:]_/.-])git(([[:space:]]+(-[Cc][[:space:]]+[^[:space:];&|()]+|--?[^[:space:];&|()]+))*)[[:space:]]+push([[:space:]]+[^;&|()]*)?([;&|()]|$)'
+    if [[ "$flat" =~ $push_re ]]; then
+      opts=${BASH_REMATCH[2]}
+      args=${BASH_REMATCH[5]}
+      dir=$root # the repo the push runs in: -C <dir> if given (R5)
+      if [[ "$opts" =~ -C[[:space:]]+([^[:space:]]+) ]]; then
+        dir=${BASH_REMATCH[1]}
+        [[ "$dir" == /* ]] || dir=$root/$dir
+      fi
+
+      read -ra words <<<"$args"
       positional=()
       for w in "${words[@]}"; do
         case "$w" in
@@ -62,17 +83,35 @@ case "$tool" in
           *) positional+=("$w") ;;
         esac
       done
+
+      unreadable='[*$`]' # wildcards, variables and command substitution hide the destination (R4)
+      bare=""
       refspecs=("${positional[@]:1}") # the first positional word is the remote
-      [ ${#refspecs[@]} -eq 0 ] && refspecs=("$branch")
+      [ ${#refspecs[@]} -eq 0 ] && bare=1
       for spec in "${refspecs[@]}"; do
-        [[ "$spec" == +* ]] && decide deny "Force pushes (+$spec) are not allowed."
-        dst=${spec#*:}
-        { [ "$dst" = "HEAD" ] || [ -z "$dst" ]; } && dst=$branch
-        dst=${dst#refs/heads/}
-        if [ "$dst" = "main" ]; then
-          decide deny "Pushes to main are not allowed; main changes only by a reviewed pull request. Push a feature branch and open a PR."
+        [[ "$spec" == +* ]] && decide deny "Force pushes ($spec) are not allowed. Push without the leading +."
+        if [[ "$spec" =~ $unreadable ]]; then
+          decide deny "The push destination ($spec) can't be checked: it uses a wildcard, variable or command. Name the feature branch."
         fi
+        dst=${spec#*:}
+        dst=${dst#refs/heads/}
+        [ "$dst" = "main" ] && decide deny "$to_main"
+        [ "$dst" = "HEAD" ] && bare=1
       done
+
+      # A bare push (or HEAD) goes where @{push} says, else to the current branch (R5).
+      if [ -n "$bare" ]; then
+        if ! branch=$(git -C "$dir" symbolic-ref --quiet --short HEAD 2>/dev/null); then
+          decide deny "The current branch can't be read (detached HEAD or not a repo), so the push destination is unknown. Switch to a feature branch and name it in the push."
+        fi
+        if target=$(git -C "$dir" rev-parse --abbrev-ref --symbolic-full-name '@{push}' 2>/dev/null); then
+          dst=${target#*/}
+        else
+          dst=$branch
+        fi
+        [ "$dst" = "main" ] && decide deny "$to_main"
+      fi
+
       decide ask "This pushes to GitHub: $cmd. Approve only if you expect this push."
     fi
 
