@@ -43,6 +43,7 @@ jobs:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           DISABLE_TELEMETRY: "1"
+          EVALS_OUT: ${{ runner.temp }}/evals-out
         run: |
           if [ -z "$CLAUDE_CODE_OAUTH_TOKEN$ANTHROPIC_API_KEY" ]; then
             echo "::notice::No Claude secret (CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY); agent evals skipped."
@@ -51,3 +52,14 @@ jobs:
           git config --global user.name evals
           git config --global user.email evals@example.invalid
           evals/run.sh
+
+      # What each eval run changed and Claude's final result, to diagnose a failure. The tasks use
+      # only synthetic changes to this repo, so the files hold no secrets or private data.
+      - name: Upload eval output
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: eval-output
+          path: ${{ runner.temp }}/evals-out
+          if-no-files-found: ignore
+          retention-days: 14

@@ -9,7 +9,7 @@
     { "name": "lint clean", "run": "make lint" },
     { "name": "types clean", "run": "make typecheck" },
     { "name": "no test weakened (assert or test removed, skip added)", "run": "! git diff HEAD -- tests | grep -E '^-\\s*(assert |def test_)|^\\+.*pytest\\.mark\\.skip'" },
-    { "name": "setting in config.py", "run": "grep -qiE 'timeout.*: *int.*= *30' src/app/config.py" },
-    { "name": "setting in .env.example (S2)", "run": "grep -qiE '^[A-Z_]*TIMEOUT[A-Z_]*=' .env.example" }
+    { "name": "setting in config.py: a timeout field defaulting to 30 (any type or Field form)", "run": "uv run python -c 'from app.config import Settings; f = {n: v.default for n, v in Settings.model_fields.items() if \"timeout\" in n}; assert any(d == 30 for d in f.values()), f'" },
+    { "name": "setting in .env.example under the field's own name (S2)", "run": "uv run python -c 'import re; from app.config import Settings; names = [n.upper() for n in Settings.model_fields if \"timeout\" in n]; text = open(\".env.example\").read(); assert any(re.search(rf\"^{n}=\", text, re.M) for n in names), names'" }
   ]
 }
