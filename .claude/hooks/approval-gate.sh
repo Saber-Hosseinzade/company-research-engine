@@ -51,7 +51,9 @@ case "$tool" in
 
     # Push and merge rules read the command with quotes and backslashes removed, so a push quoted or
     # wrapped in bash -c, sh -c or $( ) is still seen (intent/2026-11-23-push-gate/spec.md R2).
-    flat=${cmd//[\'\"\\]/}
+    flat=${cmd//$'\\\n'/ } # a line continuation joins two lines
+    flat=${flat//$'\n'/;}  # any other newline separates commands
+    flat=${flat//[\'\"\\]/}
     to_main="Pushes to main are not allowed; main changes only by a reviewed pull request. Push a feature branch and open a PR."
 
     # Claude opens pull requests but never merges them (R7).
@@ -60,8 +62,13 @@ case "$tool" in
     fi
 
     # Pushes: never to main, forced or to an unreadable destination; any other push asks (R2-R6).
-    push_re='(^|[^[:alnum:]_/.-])git(([[:space:]]+(-[Cc][[:space:]]+[^[:space:];&|()]+|--?[^[:space:];&|()]+))*)[[:space:]]+push([[:space:]]+[^;&|()]*)?([;&|()]|$)'
-    if [[ "$flat" =~ $push_re ]]; then
+    # Every push in the command is checked, including git called by path (/usr/bin/git).
+    push_re='(^|[^[:alnum:]_.-])git(([[:space:]]+(-[Cc][[:space:]]+[^[:space:];&|()]+|--?[^[:space:];&|()]+))*)[[:space:]]+push([[:space:]]+[^;&|()]*)?([;&|()]|$)'
+    rest=$flat
+    found=""
+    while [[ "$rest" =~ $push_re ]]; do
+      found=1
+      rest=${rest#*"${BASH_REMATCH[0]}"} # continue after this push
       opts=${BASH_REMATCH[2]}
       args=${BASH_REMATCH[5]}
       dir=$root # the repo the push runs in: -C <dir> if given (R5)
@@ -112,8 +119,8 @@ case "$tool" in
         [ "$dst" = "main" ] && decide deny "$to_main"
       fi
 
-      decide ask "This pushes to GitHub: $cmd. Approve only if you expect this push."
-    fi
+    done
+    [ -n "$found" ] && decide ask "This pushes to GitHub: $cmd. Approve only if you expect this push."
 
     # Public history: commits use a GitHub noreply address, never a personal one.
     if [[ "$cmd" =~ (^|[;&|[:space:]])git[[:space:]]+commit([[:space:]]|$) ]]; then

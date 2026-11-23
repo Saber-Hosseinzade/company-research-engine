@@ -22,8 +22,10 @@ From: intent.md and spec.md. Accepted by: Saber-Hosseinzade. Date: 2026-11-23.
    The fixtures build a temporary repo on a chosen branch, with a local bare repo as `origin`, so
    upstreams and `@{push}` resolve without network access (R9, A10). A fixture fails with a clear
    message when `/usr/bin/jq` or `git` is missing (R9).
-2. **Normalise and match** (R2): remove `'`, `"` and `\`; find `git [global options] push` anywhere in
-   the text; take the arguments up to `;`, `&`, `|` or `)`.
+2. **Normalise and match** (R2): join line continuations, turn other newlines into `;`, and remove
+   `'`, `"` and `\`. Find every `git [global options] push` in the text, including git called by path
+   (`/usr/bin/git`), and check each push. Take each push's arguments up to `;`, `&`, `|` or `)`.
+   The verifier found the absolute-path, multi-push and multi-line cases after the first build.
 3. **Options and refspecs** (R3, R4): deny force flags, `--all` and `--mirror`; deny refspecs with `+`,
    `*`, `$` or a backtick; compute the destination and deny `main`, including `--delete main`.
 4. **Bare push and `HEAD`** (R5): read `-C <dir>` if given; resolve `@{push}`, falling back to the current
@@ -59,7 +61,7 @@ From: intent.md and spec.md. Accepted by: Saber-Hosseinzade. Date: 2026-11-23.
 | Requirement | Test in `tests/test_approval_gate.py` |
 | --- | --- |
 | R1 | `settings.json` has no `git push` deny and has the `ask` rule (a new settings test) |
-| R2 | Pushes inside `bash -c`, after `env`, after `&&`, after `-C` and `-c` options are detected |
+| R2 | Pushes inside `bash -c`, after `env`, after `&&`, after `-C`, `-c` and `--no-pager` options, by `/usr/bin/git`, a second push in one command, and pushes on later lines are detected |
 | R3 | `main` as a plain name, quoted, `x:main`, `HEAD:main`, `refs/heads/main`, `:main` and `--delete main` are denied |
 | R4 | `-f`, `-uf`, `--force*`, `+ref`, `--all`, `--mirror`, `*`, `$B` and backtick refspecs are denied |
 | R5 | A bare push with upstream `main`, a bare push on `main`, and detached HEAD are denied; a bare push on a feature branch asks |
