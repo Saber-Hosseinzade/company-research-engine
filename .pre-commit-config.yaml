@@ -1,0 +1,54 @@
+# Checks that run on every `git commit` (installed by `make hooks` / the dev container)
+# and in CI (`make check`). Skip once with `git commit --no-verify`.
+# Hook repos are pinned to a commit; `uv run pre-commit autoupdate --freeze` bumps them.
+repos:
+  # File hygiene
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c  # frozen: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+        # JSONC files (comments allowed): VS Code reads them, strict JSON parsers can't.
+        exclude: ^(\.devcontainer/devcontainer\.json|\.vscode/.*\.json)$
+      - id: check-added-large-files
+        args: [--maxkb=1000]
+      - id: check-merge-conflict
+      # Scripts with a shebang must be executable in Git (hooks and evals fail otherwise).
+      - id: check-shebang-scripts-are-executable
+      - id: mixed-line-ending
+        args: [--fix=lf]
+
+  # Secrets: API keys, AWS credentials, tokens
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: 2ca41cc1372d1e939a6a879f18cdc19fc1cac1ce  # frozen: v8.30.0
+    hooks:
+      - id: gitleaks
+
+  # Shell scripts
+  - repo: https://github.com/scop/pre-commit-shfmt
+    rev: 479be5958357ba5ab65ce47172117348516860e9  # frozen: v3.14.1-1
+    hooks:
+      - id: shfmt
+        args: [-w, -i, "2", -ci]
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: a6564f5d57444e123433a5c9af733e3975c77229  # frozen: v0.11.0.1-1
+    hooks:
+      - id: shellcheck
+
+  # Python: ruff from uv.lock, so hooks, `make lint` and the editor use one version.
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check
+        entry: uv run --frozen ruff check --fix
+        language: system
+        types_or: [python, pyi, jupyter]
+      - id: ruff-format
+        name: ruff format
+        entry: uv run --frozen ruff format
+        language: system
+        types_or: [python, pyi, jupyter]

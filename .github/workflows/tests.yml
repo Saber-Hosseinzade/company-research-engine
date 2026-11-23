@@ -1,0 +1,74 @@
+# Regression gate: pre-commit hooks, types and the offline test suite on every push and pull request to main.
+# Offline only: no AWS credentials, no model calls, no database.
+
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      HAS_KEY: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
+    defaults:
+      run:
+        shell: bash  # bash -eo pipefail, so `| tee` keeps the exit code
+    steps:
+      # Third-party actions pinned to a commit, not a movable tag.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: |
+          python -m pip install uv==0.13.6
+          uv sync --frozen
+
+      # Same hooks as a local commit: ruff, shell scripts, file checks, secret scan.
+      - name: Pre-commit hooks
+        run: uv run pre-commit run --all-files --show-diff-on-failure 2>&1 | tee -a ci.log
+
+      - name: Types
+        run: uv run mypy 2>&1 | tee -a ci.log
+
+      - name: Offline tests
+        env:
+          AWS_DEFAULT_REGION: eu-central-1
+        run: uv run pytest -q -rs --cov --cov-report=term-missing 2>&1 | tee -a ci.log
+
+      # Read-only judgement step: on failure, Claude reads the log and writes a triage note to the job
+      # summary. It cannot edit files or push. Skipped without a Claude secret.
+      - name: Triage failure
+        if: failure() && env.HAS_KEY == 'true'
+        continue-on-error: true
+        env:
+          # Either secret works; if both are set, Claude Code uses the API key.
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          DISABLE_TELEMETRY: "1"
+        run: |
+          npm install -g @anthropic-ai/claude-code@2.1.197
+          {
+            echo "## Claude triage"
+            claude -p "Read ci.log, the output of this CI run. Name the failing step and the most likely
+              cause, say whether it looks flaky or real, and give the file and line to look at. At most
+              five lines. Do not change any file." \
+              --permission-mode default --allowedTools "Read,Grep,Glob" </dev/null
+          } >> "$GITHUB_STEP_SUMMARY"

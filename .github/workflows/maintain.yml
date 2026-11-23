@@ -1,0 +1,105 @@
+# Maintain: closes the loop on one metric, the CI test failure rate on main.
+# Detection is deterministic (maintain/detect.py). Tiers and Claude's tools come from maintain/bands.toml:
+#   1 sigma: log only.  2 sigma: Claude diagnoses read-only.  3 sigma: Claude also writes an intent.md,
+#   which this workflow (not Claude) opens as a PR into the normal review gate.
+# Claude steps need the secret CLAUDE_CODE_OAUTH_TOKEN (Claude subscription, from `claude setup-token`) or ANTHROPIC_API_KEY;
+# detection runs without it. Opening the PR needs the
+# repository setting "Allow GitHub Actions to create and approve pull requests".
+
+name: maintain
+
+on:
+  schedule:
+    - cron: "0 6 * * *"  # daily, 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write        # push the intent branch (script step only)
+  pull-requests: write   # open the intent PR (script step only)
+  actions: read          # read past CI runs
+
+concurrency:
+  group: maintain
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      HAS_KEY: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
+      GH_TOKEN: ${{ github.token }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: true  # the PR step pushes; Claude's tools include no git or shell
+
+      - name: Detect (deterministic, no model)
+        id: detect
+        run: |
+          gh run list --workflow tests.yml --branch main --limit 1000 --json conclusion,createdAt \
+            >"$RUNNER_TEMP/runs.json"
+          python3 maintain/readings.py <"$RUNNER_TEMP/runs.json" >"$RUNNER_TEMP/readings.json"
+          python3 maintain/detect.py <"$RUNNER_TEMP/readings.json" | tee "$RUNNER_TEMP/tier.json"
+          tier=$(jq -r .tier "$RUNNER_TEMP/tier.json")
+          tools=$(python3 -c 'import sys, tomllib; t = tomllib.load(open("maintain/bands.toml", "rb"))["tiers"]; print(t.get(sys.argv[1], {}).get("tools", ""))' "$tier")
+          echo "tier=$tier" >>"$GITHUB_OUTPUT"
+          echo "tools=$tools" >>"$GITHUB_OUTPUT"
+          echo "## Control band: ci_test_failure_rate" >>"$GITHUB_STEP_SUMMARY"
+          echo "\`$(jq -c . "$RUNNER_TEMP/tier.json")\`" >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Claude diagnoses (2 sigma and above)
+        if: (steps.detect.outputs.tier == '2sigma' || steps.detect.outputs.tier == '3sigma') && env.HAS_KEY == 'true'
+        env:
+          # Either secret works; if both are set, Claude Code uses the API key.
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          DISABLE_TELEMETRY: "1"
+          TIER: ${{ steps.detect.outputs.tier }}
+          TOOLS: ${{ steps.detect.outputs.tools }}
+        run: |
+          npm install -g @anthropic-ai/claude-code@2.1.197
+          today=$(date -u +%F)
+          prompt="The CI test failure rate on main breached its control band: $(cat "$RUNNER_TEMP/tier.json").
+          Daily failure rates, oldest first: $(cat "$RUNNER_TEMP/readings.json").
+          Use gh run list and gh run view --log-failed on the tests workflow to find which steps or tests
+          fail and since when. Report the most likely cause, whether it looks flaky or real, and the first
+          failing run, in at most ten lines."
+          if [ "$TIER" = 3sigma ]; then
+            prompt="$prompt
+          Then write the finding as intent/$today-ci-failure-rate/intent.md from intent/_template.md.
+          Author: monitoring agent (ci_test_failure_rate, 3 sigma). Status: draft. Put the evidence in
+          Problem and anything unresolved in Open questions. Change no other file."
+          fi
+          # dontAsk: anything not in TOOLS (from bands.toml) is refused without waiting for a person.
+          {
+            echo "## Claude diagnosis ($TIER)"
+            claude -p "$prompt" --permission-mode dontAsk --allowedTools "$TOOLS" </dev/null
+          } >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Open the intent as a PR (3 sigma)
+        if: steps.detect.outputs.tier == '3sigma' && env.HAS_KEY == 'true'
+        run: |
+          if [ -z "$(git status --porcelain -uall -- intent)" ]; then
+            echo "No intent was written."
+            exit 0
+          fi
+          if [ -n "$(git status --porcelain -uall -- ':!intent')" ]; then
+            echo "::error::Claude changed files outside intent/; no PR opened."
+            git status --porcelain -uall
+            exit 1
+          fi
+          branch="intent/ci-failure-rate-$(date -u +%F)"
+          git config user.name "maintain workflow"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git add intent
+          git commit -m "Intent: CI test failure rate breached 3 sigma"
+          git push -u origin "$branch"
+          gh pr create --base main --head "$branch" \
+            --title "Intent: CI test failure rate breached 3 sigma" \
+            --body "Opened by the maintain workflow. Detection: \`$(jq -c . "$RUNNER_TEMP/tier.json")\`.
+          Merge to accept into design; close to dismiss, and consider tuning maintain/bands.toml."

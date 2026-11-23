@@ -1,0 +1,58 @@
+[project]
+name = "app"
+version = "0.1.0"
+description = "Project description"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+license = "MIT"
+dependencies = [
+    "pydantic>=2",
+    "pydantic-settings",
+    "boto3",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "pytest-asyncio",   # async tests (most agent code is async)
+    "pytest-cov",
+    "ruff",
+    "mypy",
+    "pre-commit",
+    "ipykernel",        # Jupyter notebooks with this venv
+]
+
+[tool.uv]
+# Installed into the venv so tests import the package as built (src layout).
+package = true
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/app"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["maintain"]  # repo tooling outside the app package
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.coverage.run]
+source = ["app"]
+branch = true
+
+[tool.mypy]
+python_version = "3.12"
+files = ["src", "tests", "maintain"]
+mypy_path = "maintain"
+strict = true
+plugins = ["pydantic.mypy"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]

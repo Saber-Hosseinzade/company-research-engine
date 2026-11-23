@@ -1,0 +1,47 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
+.ipynb_checkpoints/
+
+# Secrets and local config — never commit
+.env
+.env.*
+!.env.example
+*.pem
+
+# Build output
+build/
+dist/
+
+# CDK (when infra/ is added)
+cdk.out/
+cdk.context.json
+
+# Downloaded and generated data: fetched by script, never committed
+data/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/settings.json
+
+# direnv — per-machine AWS profile, never commit
+.envrc
+
+# Claude Code: personal notes and settings stay local
+CLAUDE.local.md
+PROJECT_CONTEXT.md
+.claude/settings.local.json
+.claude/worktrees/
+.claude/tests-locked
+
+# CI logs
+ci.log

@@ -1,0 +1,17 @@
+# Response tiers for the control-band loop (.github/workflows/maintain.yml).
+# Detection (maintain/detect.py) is deterministic; Claude only runs at 2 sigma and above, with the
+# tools listed here and nothing else. Changing this file changes what the agent may do: review it.
+
+metric = "ci_test_failure_rate"
+source = "GitHub Actions runs of tests.yml on main; one reading per UTC day with finished runs"
+
+[tiers.1sigma]
+action = "log"
+
+[tiers.2sigma]
+action = "diagnose"  # read-only: findings go to the job summary
+tools = "Read,Grep,Glob,Bash(gh run list:*),Bash(gh run view:*)"
+
+[tiers.3sigma]
+action = "propose"  # Claude writes intent.md; the workflow opens it as a PR into the review gate
+tools = "Read,Grep,Glob,Bash(gh run list:*),Bash(gh run view:*),Write(intent/**)"

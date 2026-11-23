@@ -1,0 +1,53 @@
+// Workspace settings, shared through the repo. Extensions are listed in
+// .devcontainer/devcontainer.json, which installs them when the container is built.
+{
+  "python.defaultInterpreterPath": "/home/vscode/.venv/bin/python",
+  "python.testing.pytestEnabled": true,
+  "python.testing.pytestArgs": [ "tests" ],
+  "python.analysis.exclude": [ "**/.venv", "**/__pycache__", ".pytest_cache", "build", "data" ],
+
+  // Format on save everywhere; each language names its formatter below.
+  "editor.formatOnSave": true,
+  "notebook.formatOnSave.enabled": true,
+
+  // Ruff formats and sorts imports; line length matches pyproject.toml. The editor uses the venv's
+  // ruff (pinned by uv.lock), so it never depends on the Python extension having loaded first.
+  "ruff.path": [ "/home/vscode/.venv/bin/ruff" ],
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.codeActionsOnSave": { "source.organizeImports.ruff": "explicit" },
+    "editor.rulers": [ 110 ]
+  },
+  "[yaml]": { "editor.defaultFormatter": "redhat.vscode-yaml" },
+  "[github-actions-workflow]": { "editor.defaultFormatter": "redhat.vscode-yaml" },
+  "[dockercompose]": { "editor.defaultFormatter": "redhat.vscode-yaml" },
+  // Built-in JSON formatter; keepLines leaves short one-line arrays as written.
+  "[json]": { "editor.defaultFormatter": "vscode.json-language-features" },
+  "[jsonc]": { "editor.defaultFormatter": "vscode.json-language-features" },
+  "json.format.keepLines": true,
+  // markdownlint fixes what it can on save. Trailing spaces stay: two of them are a line break.
+  "[markdown]": {
+    "editor.defaultFormatter": "DavidAnson.vscode-markdownlint",
+    "editor.codeActionsOnSave": { "source.fixAll.markdownlint": "explicit" },
+    "files.trimTrailingWhitespace": false
+  },
+  "[dotenv]": { "editor.formatOnSave": false },
+
+  // Red Hat YAML's own telemetry switch. VS Code's telemetry.telemetryLevel is an
+  // application setting: it only takes effect in User settings, not here.
+  "redhat.telemetry.enabled": false,
+
+  // Postgres (make db-up) is used from inside the container only: never forward it to the host.
+  "remote.portsAttributes": { "5432": { "onAutoForward": "ignore" } },
+
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+  "files.trimFinalNewlines": true,
+  "files.watcherExclude": {
+    "**/.venv/**": true,
+    "**/.ruff_cache/**": true,
+    "**/.mypy_cache/**": true,
+    "build/**": true,
+    "data/**": true
+  }
+}

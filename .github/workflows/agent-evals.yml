@@ -1,0 +1,53 @@
+# Agent evals: run evals/*.json against a change to the agent's configuration.
+# Needs the repository secret CLAUDE_CODE_OAUTH_TOKEN (Claude subscription, from `claude setup-token`) or ANTHROPIC_API_KEY;
+# without it the job is skipped with a notice.
+# Each run costs tokens, so it runs only when the configuration changes, or on demand.
+
+name: agent-evals
+
+on:
+  pull_request:
+    branches: [main]
+    paths: ["CLAUDE.md", ".claude/**", "evals/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agent-evals-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  evals:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0  # evals can start from an older commit
+          persist-credentials: false
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: |
+          python -m pip install uv==0.13.6
+          npm install -g @anthropic-ai/claude-code@2.1.197
+
+      - name: Run eval suite
+        env:
+          # Either secret works; if both are set, Claude Code uses the API key.
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          DISABLE_TELEMETRY: "1"
+        run: |
+          if [ -z "$CLAUDE_CODE_OAUTH_TOKEN$ANTHROPIC_API_KEY" ]; then
+            echo "::notice::No Claude secret (CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY); agent evals skipped."
+            exit 0
+          fi
+          git config --global user.name evals
+          git config --global user.email evals@example.invalid
+          evals/run.sh
