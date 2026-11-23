@@ -136,6 +136,12 @@ def test_push_to_main_is_denied(command: str, feature: Path) -> None:
         'sh -c "git push origin main"',
         "echo $(git push origin main)",
         "bash -c 'cd x; git push origin main'",
+        "/usr/bin/git push origin main",
+        "git --no-pager push origin main",
+        "git push origin feature/x && git push origin main",
+        "git push origin feature/x; git push origin main",
+        "git push origin feature/x\ngit push origin main",
+        "git push origin \\\n  main",
     ],
 )
 def test_wrapped_push_to_main_is_denied(command: str, feature: Path) -> None:
@@ -206,6 +212,18 @@ def test_decisions_give_a_reason(command: str, feature: Path) -> None:
     result, reason = gate(command, feature)
     assert result in {"ask", "deny"}
     assert reason.strip()
+
+
+def test_ask_reason_names_the_command(feature: Path) -> None:
+    assert "git push origin feature/x" in gate("git push origin feature/x", feature)[1]
+
+
+def test_merge_reason_says_a_person_merges(feature: Path) -> None:
+    assert "a person merges" in gate("gh pr merge 1", feature)[1]
+
+
+def test_push_to_main_reason_says_what_to_do(feature: Path) -> None:
+    assert "Push a feature branch and open a PR" in gate("git push origin main", feature)[1]
 
 
 # Commands that are not pushes or merges keep their decision.
