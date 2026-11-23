@@ -11,7 +11,8 @@ PR (#1). The intent is therefore not yet merged on `main` when this spec is writ
 - R1. `.claude/settings.json` has no `git push` deny rule. It has an `ask` rule `Bash(git push:*)` as
   a second layer. All other deny rules are unchanged.
 - R2. The approval-gate hook treats a Bash command as a push when the text contains `git`, optionally
-  followed by git global options (`-C <dir>`, `-c <key=value>`, `--<option>`), followed by `push`.
+  followed by git global options (`-C <dir>`, `-c <key=value>`, `--<option>`, `--<option>=<value>` or
+  `--<option> <value>`), followed by `push`.
   This holds anywhere in the command: after `;`, `&&`, `|`, inside `bash -c` or `sh -c`, after
   `env`, or inside `$( )`. Quote characters (`'`, `"`) and backslashes are removed before matching.
 - R3. A push is denied when any destination is `main`. The destination is the part after `:` in a
@@ -108,7 +109,8 @@ or dependencies.
 2. **False denies.** Text that looks like a push to main, such as `git commit -m "git push origin main
    is blocked"`, is denied, because quotes are removed before matching. The same applies to a PR body
    passed with `--body`, a heredoc, or `echo` and `grep` of such text. PR bodies that describe this
-   change are the likely trigger. The workaround is to pass the text in a file: `git commit -F <file>`,
+   change are the likely trigger. The R5 `cd` rule reads the whole command, so
+   `git commit -m "cd docs" && git push` is denied too. The workaround is to pass the text in a file: `git commit -F <file>`,
    `gh pr create --body-file <file>`. This is accepted. Owner: repository owner.
 3. **Merges through `gh api`.** `gh api …/pulls/N/merge -X PUT` merges without `gh pr merge`. Gating
    `gh api` writes is out of scope in the intent. The ruleset still requires a PR and its checks.

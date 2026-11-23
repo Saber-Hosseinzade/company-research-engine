@@ -64,7 +64,7 @@ case "$tool" in
 
     # Pushes: never to main, forced or to an unreadable destination; any other push asks (R2-R6).
     # Every push in the command is checked, including git called by path (/usr/bin/git).
-    push_re='(^|[^[:alnum:]_.-])git(([[:space:]]+(-[Cc][[:space:]]+[^[:space:];&|()]+|--?[^[:space:];&|()]+))*)[[:space:]]+push([[:space:]]+[^;&|()]*)?([;&|()]|$)'
+    push_re='(^|[^[:alnum:]_.-])git(([[:space:]]+(-[Cc][[:space:]]+[^[:space:];&|()]+|--?[^[:space:];&|()]+([[:space:]]+[^-[:space:];&|()][^[:space:];&|()]*)?))*)[[:space:]]+push([[:space:]]+[^;&|()]*)?([;&|()]|$)'
     cd_re='(^|[;&|([:space:]])(cd|pushd)([[:space:]]|$)' # a directory change hides which repo a bare push uses
     unreadable='[*$`{}~]'                                # wildcards, variables, commands, braces, ~ (R4)
     rest=$flat
@@ -73,7 +73,7 @@ case "$tool" in
       found=1
       rest=${rest#*"${BASH_REMATCH[0]}"} # continue after this push
       opts=${BASH_REMATCH[2]}
-      args=${BASH_REMATCH[5]}
+      args=${BASH_REMATCH[6]}
       dir=$root # the repo the push runs in: -C <dir> if given (R5)
       has_c=""
       if [[ "$opts" =~ -C[[:space:]]+([^[:space:]]+) ]]; then
