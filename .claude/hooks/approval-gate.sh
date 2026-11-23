@@ -4,8 +4,9 @@
 #   - Edits to the agent's own guardrails and CI: ask.
 #   - git commit/merge/rebase on main: deny (one branch per change).
 #   - git push to main, forced, --all/--mirror, or to a destination that can't be read
-#     (wildcard, variable, detached HEAD): deny; any other push: ask. Quoted or wrapped pushes
-#     (bash -c, sh -c, $( )) count. A bare push is resolved through @{push}.
+#     (wildcard, variable, brace, tilde, detached HEAD, bare push after cd): deny; any other
+#     push: ask. Quoted or wrapped pushes (bash -c, sh -c, $( )) count. A bare push is resolved
+#     through @{push}.
 #   - gh pr merge: deny (a person merges pull requests).
 #   - git commit without a GitHub noreply user.email: deny.
 #   - New or removed dependencies: ask (security-policy S12).
@@ -64,6 +65,8 @@ case "$tool" in
     # Pushes: never to main, forced or to an unreadable destination; any other push asks (R2-R6).
     # Every push in the command is checked, including git called by path (/usr/bin/git).
     push_re='(^|[^[:alnum:]_.-])git(([[:space:]]+(-[Cc][[:space:]]+[^[:space:];&|()]+|--?[^[:space:];&|()]+))*)[[:space:]]+push([[:space:]]+[^;&|()]*)?([;&|()]|$)'
+    cd_re='(^|[;&|([:space:]])(cd|pushd)([[:space:]]|$)' # a directory change hides which repo a bare push uses
+    unreadable='[*$`{}~]'                                # wildcards, variables, commands, braces, ~ (R4)
     rest=$flat
     found=""
     while [[ "$rest" =~ $push_re ]]; do
@@ -72,7 +75,9 @@ case "$tool" in
       opts=${BASH_REMATCH[2]}
       args=${BASH_REMATCH[5]}
       dir=$root # the repo the push runs in: -C <dir> if given (R5)
+      has_c=""
       if [[ "$opts" =~ -C[[:space:]]+([^[:space:]]+) ]]; then
+        has_c=1
         dir=${BASH_REMATCH[1]}
         [[ "$dir" == /* ]] || dir=$root/$dir
       fi
@@ -91,23 +96,26 @@ case "$tool" in
         esac
       done
 
-      unreadable='[*$`]' # wildcards, variables and command substitution hide the destination (R4)
       bare=""
       refspecs=("${positional[@]:1}") # the first positional word is the remote
       [ ${#refspecs[@]} -eq 0 ] && bare=1
       for spec in "${refspecs[@]}"; do
         [[ "$spec" == +* ]] && decide deny "Force pushes ($spec) are not allowed. Push without the leading +."
         if [[ "$spec" =~ $unreadable ]]; then
-          decide deny "The push destination ($spec) can't be checked: it uses a wildcard, variable or command. Name the feature branch."
+          decide deny "The push destination ($spec) can't be checked: it uses a wildcard, variable, brace, ~ or command. Name the feature branch."
         fi
         dst=${spec#*:}
-        dst=${dst#refs/heads/}
+        dst=${dst#refs/}
+        dst=${dst#heads/}
         [ "$dst" = "main" ] && decide deny "$to_main"
         [ "$dst" = "HEAD" ] && bare=1
       done
 
       # A bare push (or HEAD) goes where @{push} says, else to the current branch (R5).
       if [ -n "$bare" ]; then
+        if [ -z "$has_c" ] && [[ "$flat" =~ $cd_re ]]; then
+          decide deny "A bare push after cd can't be checked: the hook can't tell which repo it runs in. Name the branch (git push origin <branch>) or use git -C <dir> push."
+        fi
         if ! branch=$(git -C "$dir" symbolic-ref --quiet --short HEAD 2>/dev/null); then
           decide deny "The current branch can't be read (detached HEAD or not a repo), so the push destination is unknown. Switch to a feature branch and name it in the push."
         fi
@@ -118,7 +126,6 @@ case "$tool" in
         fi
         [ "$dst" = "main" ] && decide deny "$to_main"
       fi
-
     done
     [ -n "$found" ] && decide ask "This pushes to GitHub: $cmd. Approve only if you expect this push."
 

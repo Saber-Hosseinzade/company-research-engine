@@ -27,9 +27,11 @@ From: intent.md and spec.md. Accepted by: Saber-Hosseinzade. Date: 2026-11-23.
    (`/usr/bin/git`), and check each push. Take each push's arguments up to `;`, `&`, `|` or `)`.
    The verifier found the absolute-path, multi-push and multi-line cases after the first build.
 3. **Options and refspecs** (R3, R4): deny force flags, `--all` and `--mirror`; deny refspecs with `+`,
-   `*`, `$` or a backtick; compute the destination and deny `main`, including `--delete main`.
-4. **Bare push and `HEAD`** (R5): read `-C <dir>` if given; resolve `@{push}`, falling back to the current
-   branch; deny `main` or a detached HEAD.
+   `*`, `$`, a backtick, braces or `~`; compute the destination (removing `refs/` and `heads/`) and deny
+   `main`, including `--delete main`.
+4. **Bare push and `HEAD`** (R5): read `-C <dir>` if given; deny a bare push without `-C` when the
+   command contains `cd` or `pushd`; resolve `@{push}`, falling back to the current branch; deny
+   `main` or a detached HEAD. The second review found the brace, `~`, `cd` and `heads/main` cases.
 5. **`gh pr merge`** (R7), checked before the push rule on the normalised text.
 6. **Reasons and header** (R6, R8, R10): each decision says what to do instead; update the header
    comment.
@@ -62,9 +64,9 @@ From: intent.md and spec.md. Accepted by: Saber-Hosseinzade. Date: 2026-11-23.
 | --- | --- |
 | R1 | `settings.json` has no `git push` deny and has the `ask` rule (a new settings test) |
 | R2 | Pushes inside `bash -c`, after `env`, after `&&`, after `-C`, `-c` and `--no-pager` options, by `/usr/bin/git`, a second push in one command, and pushes on later lines are detected |
-| R3 | `main` as a plain name, quoted, `x:main`, `HEAD:main`, `refs/heads/main`, `:main` and `--delete main` are denied |
-| R4 | `-f`, `-uf`, `--force*`, `+ref`, `--all`, `--mirror`, `*`, `$B` and backtick refspecs are denied |
-| R5 | A bare push with upstream `main`, a bare push on `main`, and detached HEAD are denied; a bare push on a feature branch asks |
+| R3 | `main` as a plain name, quoted, `x:main`, `HEAD:main`, `refs/heads/main`, `heads/main`, `:main` and `--delete main` are denied |
+| R4 | `-f`, `-uf`, `--force*`, `+ref`, `--all`, `--mirror`, `*`, `$B`, backtick, `{main,x}` and `~/x` refspecs are denied |
+| R5 | A bare push with upstream `main`, a bare push on `main`, detached HEAD, `-C` to a repo on `main` (absolute or relative) and a bare push after `cd` are denied; a bare push on a feature branch asks |
 | R6 | Feature-branch pushes ask |
 | R7 | `gh pr merge 1` and `bash -c 'gh pr merge 1'` are denied |
 | R8 | Every deny and ask returns a non-empty reason |
