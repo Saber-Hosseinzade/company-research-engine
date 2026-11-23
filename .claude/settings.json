@@ -31,7 +31,6 @@
       "Read(./.envrc)",
       "Read(./**/*.pem)",
       "Read(~/.aws/**)",
-      "Bash(git push:*)",
       "Bash(docker push:*)",
       "Bash(aws configure:*)",
       "Bash(cdk deploy:*)",
@@ -41,6 +40,7 @@
       "Bash(agentcore launch:*)",
       "Bash(agentcore destroy:*)"
     ],
+    "ask": ["Bash(git push:*)"],
     "defaultMode": "plan"
   },
   "hooks": {
