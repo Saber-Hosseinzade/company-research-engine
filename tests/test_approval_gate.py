@@ -164,6 +164,9 @@ def test_wrapped_push_to_main_is_denied(command: str, feature: Path) -> None:
         "git push origin $B",
         "git push origin feature/x:$B",
         "git push origin `echo main`",
+        "git push origin {main,x}",
+        "git push origin ma{i,j}n",
+        "git push origin ~/x",
     ],
 )
 def test_forced_or_unreadable_push_is_denied(command: str, feature: Path) -> None:
@@ -192,6 +195,30 @@ def test_bare_push_reads_the_branch_of_the_c_dir(feature: Path, tmp_path: Path) 
     other = make_repo(tmp_path / "other", "main")
     assert decision(f"git -C {other} push", feature) == "deny"
     assert decision(f"git -C {feature} push", feature) == "ask"
+    assert decision("git -C ../other push", feature) == "deny"  # relative to the project dir
+    assert decision(f"git -C {feature} push origin main", feature) == "deny"
+
+
+@pytest.mark.parametrize(
+    "command",
+    ["cd ../other && git push", "cd /tmp; git push origin", "(cd x && git push origin HEAD)"],
+)
+def test_bare_push_after_cd_is_denied(command: str, feature: Path) -> None:
+    # After a cd, the hook can't tell which repo a bare push runs in.
+    assert decision(command, feature) == "deny"
+
+
+def test_named_push_after_cd_asks(feature: Path) -> None:
+    assert decision("cd /tmp && git push origin feature/x", feature) == "ask"
+
+
+def test_heads_main_is_denied(feature: Path) -> None:
+    assert decision("git push origin feature/x:heads/main", feature) == "deny"
+
+
+def test_text_mentioning_a_merge_is_denied(feature: Path) -> None:
+    # Spec concern 2: accepted false deny; the workaround is to pass the text in a file.
+    assert decision("gh pr create --body 'never run gh pr merge'", feature) == "deny"
 
 
 # R7: Claude never merges pull requests.
