@@ -2,7 +2,7 @@
 
 PROFILE ?= sandbox
 
-.PHONY: help sso-login sso-whoami install hooks test cov lint fmt typecheck check evals tests-unlock db-up db-down fetch m0-report pages golden-check ingest test-db
+.PHONY: help sso-login sso-whoami install hooks test cov lint fmt typecheck check evals tests-unlock db-up db-down fetch m0-report pages golden-check ingest test-db chunk embed eval-retrieval
 
 help:  ## List the targets
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-12s %s\n", $$1, $$2}'
@@ -66,3 +66,12 @@ ingest:  ## Load fetched filings and pages into Postgres (needs make db-up)
 
 test-db:  ## Database tests against the local Postgres (needs make db-up; not in CI)
 	uv run pytest -q tests_db
+
+chunk:  ## Build retrieval chunks (window and page) from the pages table
+	uv run python -m app.chunks chunk
+
+embed:  ## Embed chunks without an embedding (OpenRouter; resumes after a stop)
+	uv run python -m app.chunks embed
+
+eval-retrieval:  ## Recall@10 on the golden set per chunking strategy and search mode
+	uv run python -m app.eval_retrieval

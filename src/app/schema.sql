@@ -27,3 +27,27 @@ CREATE TABLE IF NOT EXISTS pages (
 );
 
 CREATE INDEX IF NOT EXISTS pages_tsv_idx ON pages USING gin (tsv);
+
+-- M4: chunks for retrieval, two strategies, each bounded by one page. The embedding column is added by
+-- `make embed` once the model's dimension is known (app.chunks.ensure_embedding_column).
+CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA public;  -- never inside a test schema
+
+CREATE TABLE IF NOT EXISTS chunks (
+    id         bigserial PRIMARY KEY,
+    strategy   text NOT NULL CHECK (strategy IN ('window', 'page')),
+    accession  text NOT NULL,
+    page_index integer NOT NULL,
+    ordinal    integer NOT NULL,
+    ticker     text NOT NULL,
+    section    text,
+    label      text,
+    header     text NOT NULL,      -- company, form, fiscal year, section: prepended when embedding
+    text       text NOT NULL,
+    tsv        tsvector GENERATED ALWAYS AS (to_tsvector('english', text)) STORED,
+    embedding_model text,
+    FOREIGN KEY (accession, page_index) REFERENCES pages (accession, page_index) ON DELETE CASCADE,
+    UNIQUE (strategy, accession, page_index, ordinal)
+);
+
+CREATE INDEX IF NOT EXISTS chunks_tsv_idx ON chunks USING gin (tsv);
+CREATE INDEX IF NOT EXISTS chunks_scope_idx ON chunks (ticker, strategy);

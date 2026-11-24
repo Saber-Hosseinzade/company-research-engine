@@ -13,7 +13,9 @@ class DatabaseUnavailable(RuntimeError):
 def connect(settings: Settings | None = None) -> psycopg.Connection:
     url = (settings or get_settings()).database_url
     try:
-        return psycopg.connect(url, connect_timeout=5)
+        # Autocommit: every `conn.transaction()` block is then its own committed transaction, so a run
+        # that fails partway keeps what it finished (e.g. `make embed` after an HTTP 429).
+        return psycopg.connect(url, connect_timeout=5, autocommit=True)
     except psycopg.OperationalError as exc:
         raise DatabaseUnavailable("Cannot reach Postgres at DATABASE_URL. Run `make db-up`.") from exc
 

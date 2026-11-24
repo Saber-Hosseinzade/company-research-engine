@@ -81,11 +81,18 @@ Operation
   tables become one row per line, cells separated by tabs. Sections detected from "Item N." headings;
   contents rows ending in a page number, and pages with 10 or more headings, are not section starts.
 - Chunking: two strategies, both bounded by page so every chunk maps to exactly one page:
-  (a) fixed-size token windows with overlap; (b) paragraph groups within a detected section. M4
-  measures both on retrieval recall (Evaluation) and keeps the better one.
+  (a) line-aligned windows of about 1,500 characters with one line of overlap; (b) the whole page
+  (changed in M4 from "paragraph groups within a section": there is no in-page section structure).
+  Each chunk is embedded with a header (company, form, fiscal year, section). **M4 result
+  (2026-11-24): window chunks with hybrid search are kept** (recall@10 0.863 with Titan; Evaluation).
+- Embedding model (user decision, M4): `amazon/titan-embed-text-v2` via OpenRouter (served by Amazon
+  Bedrock), 1,024 dimensions, $0.02 per million tokens. It replaced the first choice,
+  `nvidia/nemotron-3.5-embed-1b:free`, whose free endpoint logs inputs for NVIDIA product improvement
+  (concern 6). Exact search, no ANN index: about 7.5k chunks search fast without one.
 - Storage (Postgres + pgvector): `filings`, `pages` (normalised text, page index, label),
-  `chunks` (text, embedding, tsvector, metadata from R3). Embedding dimension comes from
-  `EMBEDDING_DIM`; changing the embedding model means re-ingesting.
+  `chunks` (text, embedding, tsvector, metadata from R3). The embedding dimension is taken from the
+  model's first response; changing the embedding model means `python -m app.chunks embed --reset`.
+  Search uses only chunks embedded with the query's model.
 
 **Retrieval (code).** Hybrid search scoped to the request's ticker: pgvector cosine top-k and Postgres
 full-text top-k, merged by reciprocal rank fusion. No reranker in v0.
@@ -113,7 +120,7 @@ step (A6). No checkpointer or memory in v0.
 **API and page.** FastAPI: `POST /research`, `GET /filings/<accession>/pages/<n>`, `GET /` (one static
 HTML file with a small script, no framework). Compose adds an `app` service next to `db`.
 
-**Settings (S2).** New: `SEC_USER_AGENT`, `EMBEDDING_MODEL_ID`, `EMBEDDING_DIM`. Added empty to
+**Settings (S2).** New: `SEC_USER_AGENT`, `EMBEDDING_MODEL_ID`. Added empty to
 `.env.example` and typed in `config.py`. `MODEL_PROVIDER=openrouter` for v0.
 
 **Dependencies (S12).** Estimated: `langgraph`, `fastapi`, `uvicorn`, `httpx`, `openai`, `psycopg`,
@@ -151,7 +158,18 @@ HTML file with a small script, no framework). Compose adds an `app` service next
   `make golden-check` proves every quote and figure is on its page; a person reviews fairness.
 - **Metrics (`make eval-v0`):**
   - citation validity of returned notes: target 100% (guaranteed by R6, checked anyway);
-  - retrieval recall@10 of the expected page: used in M4 to choose the chunking strategy;
+  - retrieval recall@10 of the expected page: used in M4 to choose the chunking strategy. Measured
+    2026-11-24 on the 40 answerable questions (`make eval-retrieval`), for both embedding models tried:
+
+    | model | strategy | vector | full-text | hybrid |
+    | --- | --- | --- | --- | --- |
+    | titan-embed-text-v2 (kept) | window | 0.787 | 0.650 | **0.863** |
+    | titan-embed-text-v2 | page | 0.738 | 0.713 | 0.775 |
+    | nemotron-3.5-embed-1b:free | window | 0.825 | 0.650 | 0.725 |
+    | nemotron-3.5-embed-1b:free | page | 0.838 | 0.713 | 0.838 |
+
+    The 7 misses with Titan, window + hybrid: 6 change questions (3 half-found) and the AMD 10-K/A
+    item (half-found).
   - answer acceptance: expected figures present (or, for change questions, a value within 0.5% of the
     computed answer) and an expected page cited, where any page carrying the expected quote counts
     (code check, `app.eval_v0`); baseline in M5 (user decision 2026-11-24: M1 builds the harness only),
@@ -167,7 +185,7 @@ HTML file with a small script, no framework). Compose adds an `app` service next
 ## Open questions from the intent
 
 - OpenRouter chat model: Haiku 5.5 for the baseline, compared with Sonnet 5.5 in M5 (user decision
-  2026-11-24). Embedding model: picked in M4; carried as concern 1.
+  2026-11-24). Embedding model: `amazon/titan-embed-text-v2` (user choice, M4).
 - What a "page" is: answered in M0, rule above (concern 2).
 - Excerpt normalisation: R7. Code/model split in the evidence check: code checks that the excerpt exists
   and the numbers match; whether the excerpt supports the claim is the model's judgement in v0
@@ -179,8 +197,9 @@ HTML file with a small script, no framework). Compose adds an `app` service next
 
 ## Areas of concern
 
-1. **Models unmeasured.** Chat model chosen (Haiku 5.5, Sonnet 5.5 compared) but unmeasured; no
-   embedding model chosen; cost and quality above are estimates. Owner: user, at M4 and M5.
+1. **Chat model unmeasured.** Chat model chosen (Haiku 5.5, Sonnet 5.5 compared) but unmeasured;
+   answer cost and quality above are estimates. Embedding measured in M4 (recall@10 0.863, about $0.05).
+   Owner: user, at M5.
 2. **Page rule: resolved in M0 (2026-11-24).** All 16 filings in scope have CSS page breaks. In the
    15 10-Ks, page count / last printed page number is 1.00–1.03 (the extra pages are cover and
    contents), and 98–99% of pages carry a printed label. 14 of 15 10-Ks find all 23 Items; META's
@@ -194,7 +213,15 @@ HTML file with a small script, no framework). Compose adds an `app` service next
    only OpenRouter, so A1 is met in structure but not exercised. Owner: user, at roadmap step 2.
 6. **Data sent to OpenRouter.** Questions and public filing text go to OpenRouter and the model provider
    behind it. Public data only (S7), but OpenRouter's data retention depends on the chosen provider.
-   Owner: user, when choosing the models.
+   The M4 embedding endpoint (`nvidia/nemotron-3.5-embed-1b:free`) lists no data policy on
+   OpenRouter, but its notice (seen by the user, 2026-11-24) says use is logged for security and to
+   improve NVIDIA products, asks for no confidential or personal data, and falls under NVIDIA's API
+   Trial terms. It saw only public filing text and golden questions. The user then switched (M4) to
+   `amazon/titan-embed-text-v2`, served by Amazon Bedrock through OpenRouter. Its OpenRouter provider
+   page (seen by the user, 2026-11-24) shows no prompt training, zero retention and zero-data-retention
+   compatibility, so embeddings are resolved. Its anonymity is "requires user IDs": if M6 sends a user
+   identifier, it must be opaque, never a name or email (S7, S9). The chat model's provider terms are
+   still to check in M5. Owner: user.
 7. **`.env.example` defaults.** S2 says empty values; the file already shows non-secret defaults. New
    settings follow S2; the existing ones stay as they are until that open item is decided. Owner: user.
 8. **Unauthenticated local API.** S5 forbids unauthenticated endpoints; v0 binds to localhost only, which
