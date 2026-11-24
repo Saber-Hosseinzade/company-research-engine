@@ -91,3 +91,19 @@ you before M2. 10-K/As (often Part III only) are reported but not held to the It
   assigned to pages.
 - `make check`, `make typecheck`, `make test` pass; the `verifier` subagent checks the diff against this plan.
 - Measured: the `make m0-report` table on the real filings, recorded with its date.
+
+## Departures found while building (2026-11-24)
+
+- Pages with no text between two breaks are dropped and counted (`Extraction.empty_pages`); they take
+  no page index.
+- Page labels may end in a period (GOOG prints `10.`), and are also read from `Page N` and `… | N`
+  footers.
+- edgartools has two storage settings: both `EDGAR_LOCAL_DATA_DIR` and `EDGAR_CACHE_DIR` are set (not
+  defaulted) to folders under `data/` (S8; found by the verifier after the first run wrote
+  `~/.edgar_cache`).
+- `fetch` rejects tickers outside the five (R1) and document names that contain a path.
+- Contents detection: rows ending in a page number are skipped, and a page is treated as contents only
+  at 10 or more Item headings (4 dropped real Part III pages, where Items 11–14 share a page).
+- The edgartools Item comparison runs only with `python -m app.m0_report --edgartools` (it needs
+  network); `make m0-report` stays offline over `data/`.
+- Most extraction tests use small inline HTML; one synthetic filing is in `tests/fixtures/`.

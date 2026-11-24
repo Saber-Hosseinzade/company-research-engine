@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ix="http://www.xbrl.org/2013/inlineXBRL">
+<head><title>Example Corp 10-K</title><style>p { margin: 0 }</style></head>
+<body>
+<ix:header><ix:hidden>HIDDEN FACT 999</ix:hidden></ix:header>
+<div style="display: none">HIDDEN BLOCK</div>
+<div>
+  <p>EXAMPLE CORP</p>
+  <p>Annual Report on Form 10-K</p>
+</div>
+<hr style="page-break-after:always"/>
+<div>
+  <p>TABLE OF CONTENTS</p>
+  <table>
+    <tr><td>Item 1.</td><td>Business</td><td>3</td></tr>
+    <tr><td>Item 1A.</td><td>Risk Factors</td><td>4</td></tr>
+    <tr><td>Item 7.</td><td>Management's Discussion and Analysis</td><td>5</td></tr>
+    <tr><td>Item 8.</td><td>Financial Statements</td><td>F-1</td></tr>
+  </table>
+  <p>ii</p>
+</div>
+<div style="break-before: page">
+  <p><b>Item 1. Business</b></p>
+  <p>We   make   widgets.</p>
+  <p>3</p>
+</div>
+<div style="page-break-before:always"></div>
+<div style="page-break-before:always">
+  <p>Item 1A. Risk Factors</p>
+  <p>Demand may fall.</p>
+  <p>Example Corp | 2025 Form 10-K | 4</p>
+</div>
+<div style="page-break-before:always">
+  <p>ITEM 7. MANAGEMENT'S DISCUSSION AND ANALYSIS</p>
+  <p>Revenue was $<ix:nonFraction name="us-gaap:Revenues" scale="6">1,234</ix:nonFraction> million.</p>
+  <table>
+    <tr><th>Fiscal year</th><th>2025</th><th>2024</th></tr>
+    <tr><td>Revenue</td><td>1,234</td><td>1,000</td></tr>
+  </table>
+</div>
+<div style="page-break-before:always">
+  <p>Item 8. Financial Statements</p>
+  <p>Balance sheet.</p>
+  <p>F-1</p>
+</div>
+</body>
+</html>

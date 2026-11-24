@@ -67,14 +67,15 @@ Operation
 `POST /research` runs the LangGraph graph → note JSON → page renders it.
 
 **Ingestion (code only, A4).**
-- EDGAR: SEC ticker file for CIKs, `data.sec.gov/submissions/CIK<cik>.json` for the filing list (form,
-  filing date, report date, accession, primary document). Plain HTTP client with rate limit and retry.
-- Pages: HTML 10-Ks have no fixed pages. Proposed rule, settled in M0: split at CSS page breaks
-  (`page-break-before/after`, `break-before/after`), keep the sequential page index as the citation key,
-  and record the printed page number as a display label when a footer number is found.
-- Text: HTML parsed with an HTML parser (choice in M0: lxml or selectolax; Docling only if they fail,
-  given its image size). iXBRL tags are unwrapped and their text kept; tables become one row per line,
-  cells separated by tabs. Sections detected from "Item N." headings.
+- EDGAR: edgartools (user decision, M0) lists and downloads filings, handling the SEC identity, rate
+  limit and paging; our code re-applies the scope rule (tickers, forms, filing date) before saving.
+- Pages: HTML 10-Ks have no fixed pages. Rule (confirmed in M0, 2026-11-24): split at CSS page breaks
+  (`page-break-before/after`, `break-before/after`), drop pages with no text, keep the sequential page
+  index as the citation key, and record the printed page number as a display label when a footer
+  number is found.
+- Text: lxml (chosen in M0). Hidden iXBRL facts dropped; inline iXBRL tags unwrapped and their text kept;
+  tables become one row per line, cells separated by tabs. Sections detected from "Item N." headings;
+  contents rows ending in a page number, and pages with 10 or more headings, are not section starts.
 - Chunking: two strategies, both bounded by page so every chunk maps to exactly one page:
   (a) fixed-size token windows with overlap; (b) paragraph groups within a detected section. M4
   measures both on retrieval recall (Evaluation) and keeps the better one.
@@ -154,7 +155,7 @@ HTML file with a small script, no framework). Compose adds an `app` service next
 
 - OpenRouter chat and embedding models: not chosen. Picked in M1 (chat) and M4 (embedding) from
   measured results and price; carried as concern 1.
-- What a "page" is: proposed rule above; confirmed or changed in M0 (concern 2).
+- What a "page" is: answered in M0, rule above (concern 2).
 - Excerpt normalisation: R7. Code/model split in the evidence check: code checks that the excerpt exists
   and the numbers match; whether the excerpt supports the claim is the model's judgement in v0
   (concern 3).
@@ -167,8 +168,11 @@ HTML file with a small script, no framework). Compose adds an `app` service next
 
 1. **Models unmeasured.** No chat or embedding model chosen; cost and quality above are estimates.
    OpenRouter's embedding model list was not checked for this spec. Owner: user, at M1 and M4.
-2. **Page rule may not hold.** If some filings have no CSS page breaks, page citations need a fallback
-   (fixed-length pages or section-based). Owner: M0 spike result, user decides.
+2. **Page rule: resolved in M0 (2026-11-24).** All 16 filings in scope have CSS page breaks. In the
+   15 10-Ks, page count / last printed page number is 1.00–1.03 (the extra pages are cover and
+   contents), and 98–99% of pages carry a printed label. 14 of 15 10-Ks find all 23 Items; META's
+   2025 10-K misses Item 10. The AMD 10-K/A (21 pages, no printed numbers) is cited by page index only.
+   Remaining risk: new filings with no page breaks; `make m0-report` lists them first. Owner: user.
 3. **Excerpt check proves presence, not support.** A real excerpt can be cited for a claim it does not
    support. v0 relies on the model and the eval set for this. Owner: user; revisit after the M1 baseline.
 4. **10-K/A overlap.** A note may cite both an original and its amendment for the same item without

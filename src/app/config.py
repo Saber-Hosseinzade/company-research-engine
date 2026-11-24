@@ -20,6 +20,9 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql://app:app@localhost:5432/app"
 
+    # SEC EDGAR requires a User-Agent naming the client and a contact email.
+    sec_user_agent: str | None = None
+
 
 def get_settings() -> Settings:
     return Settings()
