@@ -18,6 +18,8 @@ class Settings(BaseSettings):
 
     openrouter_api_key: str | None = None
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    # Embedding model on OpenRouter; changing it means re-running `make embed`.
+    embedding_model_id: str | None = None
 
     database_url: str = "postgresql://app:app@localhost:5432/app"
 

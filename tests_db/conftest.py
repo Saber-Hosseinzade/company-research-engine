@@ -22,7 +22,7 @@ def conn() -> Iterator[psycopg.Connection]:
     schema = f"test_{uuid.uuid4().hex[:12]}"
     connection.autocommit = True
     connection.execute(f'CREATE SCHEMA "{schema}"')  # generated schema name
-    connection.execute(f'SET search_path TO "{schema}"')
+    connection.execute(f'SET search_path TO "{schema}", public')  # public: the vector extension
     try:
         yield connection
     finally:

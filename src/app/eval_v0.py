@@ -112,6 +112,18 @@ def expected_pages(item: GoldenItem, pages: PageStore) -> set[PageKey]:
     return keys
 
 
+def recall_at_k(item: GoldenItem, retrieved: Sequence[PageKey], pages: PageStore, k: int = 10) -> float:
+    """Share of the item's expected refs with a page in the top k: the golden page, or any page
+    carrying the ref's quote."""
+    top = set(retrieved[:k])
+    hits = sum(
+        1
+        for ref in item.expected
+        if (ref.accession, ref.page) in top or any(excerpt_on_page(ref.quote, pages.get(p, "")) for p in top)
+    )
+    return hits / len(item.expected) if item.expected else 0.0
+
+
 def score(item: GoldenItem, result: AnswerResult, pages: PageStore) -> ItemScore:
     note = result.note
     text = _note_text(note)
@@ -121,16 +133,7 @@ def score(item: GoldenItem, result: AnswerResult, pages: PageStore) -> ItemScore
 
     recall = None
     if result.retrieved is not None and item.expected:
-        # Hit when any page carrying the ref's quote is in the top 10, per expected ref.
-        top = set(result.retrieved[:10])
-        hits = sum(
-            1
-            for ref in item.expected
-            if any(
-                excerpt_on_page(ref.quote, pages.get(k, "")) or k == (ref.accession, ref.page) for k in top
-            )
-        )
-        recall = hits / len(item.expected)
+        recall = recall_at_k(item, result.retrieved, pages, k=10)
 
     if item.kind == "unanswerable":
         return ItemScore(

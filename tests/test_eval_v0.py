@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from app.eval_v0 import AnswerResult, score, summarise
+from app.eval_v0 import AnswerResult, recall_at_k, score, summarise
 from app.golden import GoldenItem
 from app.note import Note
 
@@ -178,3 +178,10 @@ def test_summarise() -> None:
         1.0,
         None,
     )
+
+
+def test_recall_at_k_directly() -> None:
+    assert recall_at_k(FIGURE, [(ACC, 40)], PAGES) == 1.0
+    assert recall_at_k(FIGURE, [(ACC, 62)], PAGES) == 1.0  # another page carrying the quote
+    assert recall_at_k(FIGURE, [(ACC, 41)], PAGES) == 0.0
+    assert recall_at_k(FIGURE, [(ACC, 41), (ACC, 40)], PAGES, k=1) == 0.0

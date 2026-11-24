@@ -129,3 +129,37 @@ are written to `data/evals/`. The strategy with the best hybrid recall@10 is kep
   - recall@10 per strategy and mode on 40 questions.
 - `make check`, `make typecheck`, `make test` and `make test-db` pass; the `verifier` checks the diff
   against this plan.
+
+## Departures found while building (2026-11-24)
+
+- No `pgvector` Python package: vectors go to Postgres as text with `::vector`, so the adapter isn't
+  needed (S12).
+- The embedding column is added by `make embed` once the model's dimension is known; `make chunk`
+  creates the table without it.
+- `make chunk` skips a filing and strategy that already have chunks (keeping their embeddings);
+  `python -m app.chunks chunk --rebuild` rebuilds.
+- Full-text search ORs the query terms (`plainto_tsquery` with `&` replaced by `|`); with AND semantics
+  a full question rarely matches anything.
+- Missing settings print a one-line message instead of a traceback.
+- `CREATE EXTENSION vector WITH SCHEMA public`, and the DB tests put `public` on their search path:
+  the first test run had created the extension inside a throwaway test schema, and dropping that
+  schema removed it (found by `make test-db` failing after the real `make chunk`).
+- `search(conn, ticker, strategy, query, query_vector, model, mode, k)`: it takes a precomputed query
+  vector and its model (so a run embeds all questions once) and a `mode` (vector, fts, hybrid) for
+  the measurement. It uses only chunks with `embedding_model` equal to `model`.
+- After the verifier: `make embed` stops before any API call when stored chunks come from another
+  model, and prints the reset command instead of a traceback; it applies the schema first, so it works
+  before `make chunk`. The window chunker skips the overlap when the overlap line and the next line
+  don't fit together. The chunks DDL lives in `schema.sql`; only the embedding column is added later.
+  The eval JSON records query tokens.
+
+## Measured (2026-11-24)
+
+- `make chunk`: window=5,940, page=1,525 chunks, 1.2 s.
+- `make embed`: 7,465 chunks, 234 requests, 2,922,255 tokens, 500 s, no rate-limit stop; the
+  model returns 2,048 dimensions; cost $0 (free endpoint).
+- `make eval-retrieval`, recall@10 over 40 answerable golden questions (re-run after the model filter,
+  same numbers):
+  window 0.825 vector / 0.650 full-text / 0.725 hybrid; page 0.838 / 0.713 / 0.838. **Kept: page
+  strategy, hybrid search.** The misses: nvda-05, nvda-08, amd-04, amd-05, meta-02, meta-04, meta-08
+  (5 change questions, 2 headcount).
