@@ -171,16 +171,30 @@ HTML file with a small script, no framework). Compose adds an `app` service next
     The 7 misses with Titan, window + hybrid: 6 change questions (3 half-found) and the AMD 10-K/A
     item (half-found).
   - answer acceptance: expected figures present (or, for change questions, a value within 0.5% of the
-    computed answer) and an expected page cited, where any page carrying the expected quote counts
-    (code check, `app.eval_v0`); baseline in M5 (user decision 2026-11-24: M1 builds the harness only),
-    target set then;
-  - "not found" rate on unanswerable questions, with no advice wording: target set at the M5 baseline.
-- **Models (user decision 2026-11-24):** baseline on Haiku 5.5 via OpenRouter, with one comparison run
-  of the same golden set on Sonnet 5.5, both in M5.
-- **Cost (A3, estimates, to be measured):** per question about 15k input and 2k output tokens; at
-  $1 / $5 per million tokens that is about $0.03, so a 50-question eval run is about $1.50. Ingestion
-  embeddings: about 17 filings × 150k tokens × 2 strategies ≈ 5M tokens, under $1 at typical embedding
-  prices.
+    computed answer) and an expected page cited (code check, `app.eval_v0`). A page counts when it is
+    the golden page or carries the expected quote; for figure and change items also when the cited
+    pages together print every expected figure (M5, user decision: 10-Ks print the same number in
+    several places). Amendment and narrative items keep the strict rule;
+  - "not found" rate on unanswerable questions, with no advice wording.
+- **Model (user decision 2026-11-24):** Haiku 5.5 via OpenRouter. The planned Sonnet 5.5 comparison run
+  was dropped (user decision, M5).
+- **M5 baseline (2026-11-24, Haiku 5.5, `make eval-v0`, two runs):**
+
+  | run | acceptance | not-found | citation validity | recall@10 | advice | cost |
+  | --- | --- | --- | --- | --- | --- | --- |
+  | 1 (before the verifier fixes) | 0.900 (36/40; 0.675 under the M1 rule) | 1.000 | 1.000 | 0.850 | 0 | $0.0895 |
+  | 2 (final M5 code) | 0.850 (34/40) | 1.000 | 1.000 | 0.812 | 0 | $0.0980 |
+
+  The spread is run-to-run variance: query planning and drafting run at the model's default
+  temperature. Misses in run 2: nvda-07, nvda-08, amd-02, amd-05, amd-06, amd-08. amd-08 cites the
+  original 10-K's superseded sentence instead of the 10-K/A in both runs.
+- **Targets (user decision 2026-11-24), checked by `make eval-v0`, which exits non-zero below them:**
+  acceptance >= 0.85, not-found 1.0, citation validity 1.0, advice items 0. One run is one sample; a
+  single question moves acceptance by 2.5 points.
+- **Cost (A3, measured 2026-11-24):** one 50-question run on Haiku 5.5 is $0.09 to $0.10 (100 to 105
+  chat calls, 630k to 690k prompt and 53k to 58k completion tokens, 350 to 380 s), about $0.002 per
+  question. Embedding all chunks with Titan
+  is about $0.05.
 
 ## Open questions from the intent
 
@@ -193,13 +207,13 @@ HTML file with a small script, no framework). Compose adds an `app` service next
 - 10-K/A citations: each citation names the document it came from and its form type and amendment
   number (R4, R5). No rule that an amendment replaces its original in v0 (concern 4).
 - Fiscal period labels: R9.
-- Answer acceptance target: set from the M5 baseline.
+- Answer acceptance target: 0.85, set from the M5 baseline (user decision).
 
 ## Areas of concern
 
-1. **Chat model unmeasured.** Chat model chosen (Haiku 5.5, Sonnet 5.5 compared) but unmeasured;
-   answer cost and quality above are estimates. Embedding measured in M4 (recall@10 0.863, about $0.05).
-   Owner: user, at M5.
+1. **Models: measured.** Haiku 5.5 acceptance 0.850 to 0.900 over two runs, at about $0.002 per question (M5);
+   embeddings recall@10 0.863 (M4). One run each; the chat model runs at its default temperature
+   (no provider accepts `temperature`), so results vary between runs. Owner: user.
 2. **Page rule: resolved in M0 (2026-11-24).** All 16 filings in scope have CSS page breaks. In the
    15 10-Ks, page count / last printed page number is 1.00–1.03 (the extra pages are cover and
    contents), and 98–99% of pages carry a printed label. 14 of 15 10-Ks find all 23 Items; META's
@@ -220,8 +234,9 @@ HTML file with a small script, no framework). Compose adds an `app` service next
    `amazon/titan-embed-text-v2`, served by Amazon Bedrock through OpenRouter. Its OpenRouter provider
    page (seen by the user, 2026-11-24) shows no prompt training, zero retention and zero-data-retention
    compatibility, so embeddings are resolved. Its anonymity is "requires user IDs": if M6 sends a user
-   identifier, it must be opaque, never a name or email (S7, S9). The chat model's provider terms are
-   still to check in M5. Owner: user.
+   identifier, it must be opaque, never a name or email (S7, S9). Chat requests carry OpenRouter
+   provider routing set in code (M5): `data_collection: deny` (no provider that trains on prompts),
+   `zdr: true` (zero-data-retention endpoints) and `require_parameters: true`. Owner: user.
 7. **`.env.example` defaults.** S2 says empty values; the file already shows non-secret defaults. New
    settings follow S2; the existing ones stay as they are until that open item is decided. Owner: user.
 8. **Unauthenticated local API.** S5 forbids unauthenticated endpoints; v0 binds to localhost only, which

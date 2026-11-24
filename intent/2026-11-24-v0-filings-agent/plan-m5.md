@@ -124,3 +124,53 @@ data with their accession and page index.
   and time.
 - `make check`, `make typecheck`, `make test` and `make test-db` pass; the `verifier` checks the diff
   against this plan.
+
+## Departures found while building (2026-11-24)
+
+- No `temperature`: none of the providers for Haiku 5.5 or Sonnet 5.5 accepts it, and with
+  `require_parameters: true` it ruled out every provider (HTTP 404, confirmed by probe). The model runs
+  at its default temperature, so runs vary.
+- The JSON schema sent to providers turns Pydantic's `oneOf` (the figure union) into `anyOf` and drops
+  `discriminator` (`llm.provider_schema`): Vertex rejected `oneOf` (HTTP 400). Replies are still
+  validated with the Pydantic model. No flattening was needed.
+- OpenRouter returns usage and cost in every response; no request option is needed.
+- `langgraph` brings `langsmith`, which sends nothing unless its tracing environment variables are set
+  (they are not).
+- `RunMeta` on `Note` carries the run metadata (R5, R16): model, prompt version, tokens, cost,
+  embedding tokens, seconds, drafts, parse retries, retrieved pages.
+- The search queries always include the question itself, besides the model's 1 to 4 queries.
+- The Sonnet 5.5 comparison run was dropped (user decision).
+- Scoring (user decision after the baseline): for figure and change items, a citation also counts when
+  the cited pages together print every expected figure. `make eval-v0 --rescore <file>` re-scores a
+  saved run without model calls.
+- Targets (user decision): acceptance >= 0.85, not-found 1.0, citation validity 1.0, no advice;
+  `make eval-v0` exits non-zero below them.
+- `make eval-v0` takes options through `ARGS`: `make eval-v0 ARGS="--rescore <file>"` or
+  `ARGS="--ids a,b"`; the model is chosen with `MODEL_ID=… make eval-v0`.
+- Retrieval merges the pages of all queries by summed reciprocal rank (`merge_page_rankings`), not by
+  best rank.
+- `check_scope` also rejects an empty question, strips whitespace before the length check, and
+  upper-cases the ticker.
+- After the verifier:
+  - an item whose run ended in an error is never accepted, even when it is unanswerable;
+  - a re-draft keeps whichever validated note has more claims, so a worse second draft cannot throw
+    away a valid claim;
+  - page tags in page text are neutralised in any spelling and attribute values are escaped (S10);
+  - a response with no choices counts as a parse failure (R18).
+  Each has a test.
+
+## Measured (2026-11-24)
+
+- Smoke run, 3 items (nvda-04, amd-08, meta-10): $0.0082.
+- Full Haiku 5.5 run, 50 items, one sample: acceptance 0.675 under the M1 rule, 0.900 under the
+  revised rule (rescored from the saved notes); not-found 1.000; citation validity 1.000;
+  recall@10 0.850; advice items 0; 0 errors, 0 parse retries; drops: 17 summaries,
+  3 unsupported_number. 100 chat calls, 629,373 prompt and 53,077 completion tokens, $0.0895, 383 s.
+  By category (revised rule): figure 14/15, change 13/14, narrative 9/10, amendment 0/1, out of scope
+  5/5, advice 5/5. Misses: amd-02, nvda-08, nvda-07, amd-08. Targets: PASS.
+- Second full run on the final M5 code (after the verifier fixes), one sample: acceptance 0.850
+  (34/40), not-found 1.000, citation validity 1.000, recall@10 0.812, advice 0; 0 errors; drops: 21
+  summaries, 2 unsupported_number. 105 chat calls, 690,685 prompt and 57,862 completion tokens,
+  $0.0980, 353 s. By category: figure 14/15, change 12/14, narrative 8/10, amendment 0/1, out of
+  scope 5/5, advice 5/5. Misses: nvda-07, nvda-08, amd-02, amd-05, amd-06, amd-08. Targets: PASS, with
+  acceptance exactly at 0.85: run-to-run variance (default temperature) is about one or two questions.

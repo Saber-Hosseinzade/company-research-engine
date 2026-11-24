@@ -185,3 +185,63 @@ def test_recall_at_k_directly() -> None:
     assert recall_at_k(FIGURE, [(ACC, 62)], PAGES) == 1.0  # another page carrying the quote
     assert recall_at_k(FIGURE, [(ACC, 41)], PAGES) == 0.0
     assert recall_at_k(FIGURE, [(ACC, 41), (ACC, 40)], PAGES, k=1) == 0.0
+
+
+# --- M5: figure-page rule and targets ---
+
+from app.eval_v0 import TARGETS, Summary, target_failures  # noqa: E402
+
+OTHER = {(ACC, 70): "Segment note: Revenue 130,497 for the year"}
+
+
+def test_page_printing_the_expected_figures_counts_for_figure_items() -> None:
+    pages = PAGES | OTHER
+    s = score(
+        FIGURE, AnswerResult(note("Revenue was $130,497 million.", page=70, excerpt="Revenue 130,497")), pages
+    )
+    assert s.page_hit is True and s.accepted
+
+
+def test_page_without_the_figures_still_fails() -> None:
+    s = score(FIGURE, AnswerResult(note("Revenue was $130,497 million.", page=41, excerpt="Other")), PAGES)
+    assert s.page_hit is False
+
+
+def test_figure_rule_does_not_apply_to_amendment_items() -> None:
+    amendment = GoldenItem.model_validate(FIGURE.model_dump() | {"id": "nvda-09", "category": "amendment"})
+    pages = PAGES | OTHER
+    s = score(
+        amendment,
+        AnswerResult(note("Revenue was $130,497 million.", page=70, excerpt="Revenue 130,497")),
+        pages,
+    )
+    assert s.page_hit is False
+
+
+def test_targets() -> None:
+    good = Summary(
+        items=50,
+        acceptance_rate=0.9,
+        not_found_rate=1.0,
+        citation_validity=1.0,
+        recall_at_10=0.85,
+        advice_items=0,
+    )
+    assert target_failures(good) == []
+    bad = Summary(
+        items=50,
+        acceptance_rate=0.8,
+        not_found_rate=0.9,
+        citation_validity=0.99,
+        recall_at_10=None,
+        advice_items=1,
+    )
+    assert len(target_failures(bad)) == 4
+    assert TARGETS["acceptance_rate"] == 0.85
+
+
+def test_errored_item_is_never_accepted() -> None:
+    from app.eval_v0 import errored
+
+    s = score(ADVICE, AnswerResult(note("", status="not_found")), PAGES)
+    assert s.accepted and not errored(s).accepted
