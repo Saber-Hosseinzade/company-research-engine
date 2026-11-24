@@ -115,3 +115,38 @@ and offline use, and `DbSources` (from the `filings` and `pages` tables) in `app
 - `tests_db/test_store.py`: `DbSources` returns the same filing info and page text as `FileSources`.
 - `make check`, `make typecheck`, `make test` and `make test-db` pass; the `verifier` checks the diff
   against this plan.
+
+## Departures found while building (2026-11-24)
+
+- Duplicate figure ids in a claim are rejected as `bad_inputs`.
+- A citation to an accession that isn't stored is `unknown_page`, the same as a missing page.
+- Operations are defined in `draft.py`: difference(a, b) = b − a; percent_change = (b − a) / |a| × 100;
+  ratio = a / b; sum. A quoted citation index out of range is `bad_inputs`.
+- Hardening after the verifier showed bypasses (each now has a regression test):
+  - a quoted value must be one printed number (`$60,922`, `(1,200)`, `10.5%`, `$130.5 billion`);
+    otherwise `bad_value`. Brackets make it negative only when they wrap it;
+  - the scale word is part of a value; a scale word in the text that contradicts the excerpt or the
+    unit is `scale_mismatch`;
+  - a placeholder touching a digit, a sign or another placeholder, or a stray brace, is `bad_placeholder`;
+  - only a bare year is exempt from the number check (not `$2019 million` or `2019%`); spelled-out
+    amounts with a scale word are `unsupported_number`;
+  - excerpts shorter than 15 characters are `excerpt_too_short`;
+  - computed inputs must share unit, scale and percent for every operation, ratio included;
+  - the advice check runs on normalised text without invisible characters (`policy.contains_advice`)
+    and covers the paraphrases found; the eval uses the same function;
+  - the ticker is compared upper-case.
+
+## Known limits (accepted; revisit with the M5 baseline)
+
+- A number that appears anywhere in a cited excerpt is accepted in the text, even if the claim
+  attaches it to the wrong line item.
+- The unit of a table value is the model's word; code checks consistency, not truth.
+- percent_change from a negative base follows the |a| rule and can read oddly.
+- Look-alike letters from other scripts can still evade the advice phrase list.
+
+## Measured (2026-11-24)
+
+- A hand-written draft for golden item nvda-04, validated against the database (`DbSources`): the
+  percent change is computed in code as 105.5% and labelled "source: 10-K for fiscal year ended
+  2026-01-25, filed 2026-02-25". A second claim with a made-up number is dropped (`unsupported_number`).
+  The eval scores the note as accepted.

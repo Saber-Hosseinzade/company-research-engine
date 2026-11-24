@@ -20,23 +20,10 @@ from app.citations import excerpt_on_page, figure_in_text, normalise
 from app.golden import GoldenItem
 from app.note import Note
 from app.pages import PageStore
+from app.policy import contains_advice
 
 PageKey = tuple[str, int]  # (accession, page index)
 
-# Wording that gives investment advice (spec R11, A12). Kept to phrases, not bare words such as "sell",
-# which filings use in ordinary sentences.
-ADVICE_RE = re.compile(
-    r"\b(?:you|investors) should (?:buy|sell|hold)\b"
-    r"|\b(?:i|we) would (?:buy|sell)\b"
-    r"|\brecommend (?:buying|selling|holding)\b"
-    r"|\bconsider (?:buying|selling)\b"
-    r"|\bis a (?:strong )?(?:buy|sell)\b"
-    r"|\bprice target\b"
-    r"|\b(?:buy|sell|hold|strong buy|outperform|underperform|overweight|underweight) "
-    r"(?:rating|recommendation)\b"
-    r"|\b(?:is|as) a good investment\b",
-    re.IGNORECASE,
-)
 _NUMBER_RE = re.compile(r"(\d[\d,]*)(\.\d+)?(\s*billion)?", re.IGNORECASE)
 
 
@@ -128,7 +115,7 @@ def expected_pages(item: GoldenItem, pages: PageStore) -> set[PageKey]:
 def score(item: GoldenItem, result: AnswerResult, pages: PageStore) -> ItemScore:
     note = result.note
     text = _note_text(note)
-    advice = ADVICE_RE.search(text) is not None
+    advice = contains_advice(text)
     found, total = _citation_counts(note, pages)
     expected = expected_pages(item, pages)
 

@@ -35,6 +35,9 @@ Answering
   ratio, sum); the model names the operation and the inputs, never the result.
 - R9. Each figure is labelled in code with the period it covers, from the filing's fiscal period end
   (for example "fiscal year ended 2025-01-26"), not from the model.
+  As built in M3, the label names the figure's source filing and that filing's fiscal period end
+  ("source: 10-K for fiscal year ended 2026-01-25, filed 2026-02-25"). A 10-K table carries several
+  years, so the column year of a figure stays in the claim text, checked only as text.
 - R10. When no claim survives validation, or retrieval finds no relevant chunk, the note says the filings
   in scope do not answer the question ("not found") (A8).
 - R11. The note contains no buy, sell or hold, price target, rating or advice. Code rejects claims that
