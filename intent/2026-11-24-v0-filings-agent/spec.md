@@ -138,14 +138,20 @@ HTML file with a small script, no framework). Compose adds an `app` service next
 - **Offline tests (M2–M6):** fetch and ingest on saved filing fixtures; excerpt matcher, arithmetic,
   period labels and advice filter on fixed cases; graph with a fake model, including a model that cites
   a wrong page (must be dropped) and one that states a computed number (must be replaced).
-- **Golden set (M1):** about 40 answerable questions (8 per company) and 10 unanswerable ones (estimate),
-  each with the expected filing, page(s) and key figures. Covers 10-K/A and figure arithmetic.
+- **Golden set (M1, `golden/v0.jsonl`):** 40 answerable questions (8 per company: figure, change,
+  narrative, two-filing, and the AMD 10-K/A) and 10 unanswerable ones (one out of scope and one advice
+  request per company), each with the expected filing, page(s), a verbatim quote and key figures.
+  `make golden-check` proves every quote and figure is on its page; a person reviews fairness.
 - **Metrics (`make eval-v0`):**
   - citation validity of returned notes: target 100% (guaranteed by R6, checked anyway);
   - retrieval recall@10 of the expected page: used in M4 to choose the chunking strategy;
-  - answer acceptance: expected figures present and expected pages cited (code check) on answerable
-    questions; baseline at M1 with a first prompt, target set then;
-  - "not found" rate on unanswerable questions: target set at M1 baseline.
+  - answer acceptance: expected figures present (or, for change questions, a value within 0.5% of the
+    computed answer) and an expected page cited, where any page carrying the expected quote counts
+    (code check, `app.eval_v0`); baseline in M5 (user decision 2026-11-24: M1 builds the harness only),
+    target set then;
+  - "not found" rate on unanswerable questions, with no advice wording: target set at the M5 baseline.
+- **Models (user decision 2026-11-24):** baseline on Haiku 5.5 via OpenRouter, with one comparison run
+  of the same golden set on Sonnet 5.5, both in M5.
 - **Cost (A3, estimates, to be measured):** per question about 15k input and 2k output tokens; at
   $1 / $5 per million tokens that is about $0.03, so a 50-question eval run is about $1.50. Ingestion
   embeddings: about 17 filings × 150k tokens × 2 strategies ≈ 5M tokens, under $1 at typical embedding
@@ -153,8 +159,8 @@ HTML file with a small script, no framework). Compose adds an `app` service next
 
 ## Open questions from the intent
 
-- OpenRouter chat and embedding models: not chosen. Picked in M1 (chat) and M4 (embedding) from
-  measured results and price; carried as concern 1.
+- OpenRouter chat model: Haiku 5.5 for the baseline, compared with Sonnet 5.5 in M5 (user decision
+  2026-11-24). Embedding model: picked in M4; carried as concern 1.
 - What a "page" is: answered in M0, rule above (concern 2).
 - Excerpt normalisation: R7. Code/model split in the evidence check: code checks that the excerpt exists
   and the numbers match; whether the excerpt supports the claim is the model's judgement in v0
@@ -162,19 +168,19 @@ HTML file with a small script, no framework). Compose adds an `app` service next
 - 10-K/A citations: each citation names the document it came from and its form type and amendment
   number (R4, R5). No rule that an amendment replaces its original in v0 (concern 4).
 - Fiscal period labels: R9.
-- Answer acceptance target: set from the M1 baseline.
+- Answer acceptance target: set from the M5 baseline.
 
 ## Areas of concern
 
-1. **Models unmeasured.** No chat or embedding model chosen; cost and quality above are estimates.
-   OpenRouter's embedding model list was not checked for this spec. Owner: user, at M1 and M4.
+1. **Models unmeasured.** Chat model chosen (Haiku 5.5, Sonnet 5.5 compared) but unmeasured; no
+   embedding model chosen; cost and quality above are estimates. Owner: user, at M4 and M5.
 2. **Page rule: resolved in M0 (2026-11-24).** All 16 filings in scope have CSS page breaks. In the
    15 10-Ks, page count / last printed page number is 1.00–1.03 (the extra pages are cover and
    contents), and 98–99% of pages carry a printed label. 14 of 15 10-Ks find all 23 Items; META's
    2025 10-K misses Item 10. The AMD 10-K/A (21 pages, no printed numbers) is cited by page index only.
    Remaining risk: new filings with no page breaks; `make m0-report` lists them first. Owner: user.
 3. **Excerpt check proves presence, not support.** A real excerpt can be cited for a claim it does not
-   support. v0 relies on the model and the eval set for this. Owner: user; revisit after the M1 baseline.
+   support. v0 relies on the model and the eval set for this. Owner: user; revisit after the M5 baseline.
 4. **10-K/A overlap.** A note may cite both an original and its amendment for the same item without
    saying which is current. Owner: user; revisit if the golden set shows it.
 5. **Bedrock path untested in v0.** `MODEL_PROVIDER=bedrock` stays in config but v0 builds and tests

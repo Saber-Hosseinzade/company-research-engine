@@ -29,7 +29,8 @@ note, with each citation linking to the cited filing page.
 Success is measured on a golden set of questions over these five companies:
 
 - 100% of citations in returned notes pass the code check (no unchecked citation reaches the user);
-- answer acceptance rate: baseline measured at M1, target set then;
+- answer acceptance rate: baseline measured at M5 (moved from M1 by user decision, 2026-11-24), target
+  set then;
 - all tests stay offline.
 
 Built in PR-sized milestones, each with its own `plan.md`: M0 page/section extraction spike → M1 golden
@@ -66,4 +67,4 @@ UI beyond the simple question page (no login, history or styling work).
 - Excerpt-match normalisation (whitespace, Unicode, iXBRL tags) and the code/model split in the evidence
   check (settled in the spec).
 - Fiscal years differ (NVDA ends late January): how a note labels the period a figure covers.
-- Answer acceptance target, set from the M1 baseline.
+- Answer acceptance target, set from the M5 baseline.

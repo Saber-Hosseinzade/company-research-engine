@@ -95,3 +95,35 @@ comparison run on Sonnet 5.5 (both via OpenRouter). No OpenRouter key is needed 
 - Local, measured: `make golden-check` passes on all 50 items against `data/` (run and recorded).
 - `make check`, `make typecheck` and `make test` pass; the `verifier` subagent checks the diff against
   this plan.
+
+## Departures found while building (2026-11-24)
+
+- `page_hit` and `recall_at_10` also count any page that carries an expected quote, not only the golden
+  page: the drafters found the same table row or sentence on several pages (10 of 40 answerable items
+  have such extra pages). Accepted pages come from the quote, so a page with superseded text does not
+  count.
+- `citations_valid` is pooled: `ItemScore` keeps found and total excerpt counts, and the summary divides
+  their sums.
+- amd-08 (10-K/A): the ref to the original 10-K's superseded sentence was removed; amzn-02 asks only for
+  the figure.
+- `normalise` is cached (`lru_cache`), since page texts are normalised again for every item.
+- An answerable item is accepted only with status `answered` and no advice wording, besides `page_hit`
+  and `figures_ok`.
+- After the verifier: change values are compared as magnitudes (the sign is often in words), a correctly
+  rounded number counts ("3.1%" for 3.05), and "billion" converts for values in $ millions. The advice
+  regex no longer flags "I recommend consulting an adviser" and now catches "is a buy", "would buy",
+  "consider buying" and analyst ratings. goog-08 asks for the absolute change; nvda-06 figures carry `%`.
+
+## Known limits (accepted for M1; revisit at the M5 baseline)
+
+- Narrative items without figures are accepted on the cited page alone.
+- For change items, any number in the note within tolerance counts, including an unrelated one.
+- A figure printed in another form elsewhere (goog-03 "$91.4 billion" against 91,447; amd-01 16,635
+  against "$16.6 billion") fails unless the note uses the golden form.
+- `expected_pages` searches all pages, not only the item's company; no cross-company match today.
+
+## Measured (2026-11-24)
+
+- `make golden-check`: items=50 answerable=40 unanswerable=10 problems=0.
+- A note citing exactly the golden pages and figures scores acceptance 1.0, not-found 1.0, citation
+  validity 1.0 on all 50 items. 10 of 40 answerable items have extra valid pages carrying their quote.
