@@ -2,7 +2,7 @@
 
 PROFILE ?= sandbox
 
-.PHONY: help sso-login sso-whoami install hooks test cov lint fmt typecheck check evals tests-unlock db-up db-down fetch m0-report pages golden-check
+.PHONY: help sso-login sso-whoami install hooks test cov lint fmt typecheck check evals tests-unlock db-up db-down fetch m0-report pages golden-check ingest test-db
 
 help:  ## List the targets
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-12s %s\n", $$1, $$2}'
@@ -60,3 +60,9 @@ pages:  ## Write every fetched page as text under data/pages/ (for reading and s
 
 golden-check:  ## Check that every golden quote and figure is on its expected page
 	uv run python -m app.golden
+
+ingest:  ## Load fetched filings and pages into Postgres (needs make db-up)
+	uv run python -m app.ingest
+
+test-db:  ## Database tests against the local Postgres (needs make db-up; not in CI)
+	uv run pytest -q tests_db
