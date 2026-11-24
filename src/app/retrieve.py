@@ -6,11 +6,12 @@ The company filter is in SQL, so a search can never return another company's pag
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, Protocol
 
 import psycopg
 
 from app.chunks import to_vector
+from app.llm import Embedder
 
 Mode = Literal["vector", "fts", "hybrid"]
 CANDIDATES = 30
@@ -99,3 +100,73 @@ def search(
     if mode in ("fts", "hybrid"):
         rankings.append(fts_candidates(conn, ticker.upper(), strategy, query))
     return fuse(rankings, k=k)
+
+
+# --- Pages for the agent (M5) ----------------------------------------------------------------------
+
+AGENT_STRATEGY = "window"  # kept in M4 (recall@10 0.863 with Titan, hybrid)
+PAGES_FOR_DRAFT = 8
+
+
+@dataclass(frozen=True)
+class RetrievedPage:
+    accession: str
+    page: int
+    ticker: str
+    form: str
+    filing_date: str
+    report_date: str | None
+    amendment_no: int | None
+    label: str | None
+    section: str | None
+    text: str
+
+
+class Retriever(Protocol):
+    def retrieve(self, ticker: str, queries: Sequence[str]) -> list[RetrievedPage]: ...
+
+
+def merge_page_rankings(rankings: Sequence[Sequence[Hit]], n: int = PAGES_FOR_DRAFT) -> list[PageKey]:
+    """Fuse the page rankings of several queries by reciprocal rank; best n pages."""
+    scores: dict[PageKey, float] = {}
+    for ranking in rankings:
+        for rank, hit in enumerate(ranking, start=1):
+            key = (hit.accession, hit.page)
+            scores[key] = scores.get(key, 0.0) + 1.0 / (RRF_K + rank)
+    return [key for key, _ in sorted(scores.items(), key=lambda kv: (-kv[1], kv[0]))][:n]
+
+
+@dataclass
+class DbRetriever:
+    """Hybrid search for each query, fused across queries, with page text and filing details."""
+
+    conn: psycopg.Connection
+    embedder: Embedder
+    strategy: str = AGENT_STRATEGY
+    k: int = 10
+    n_pages: int = PAGES_FOR_DRAFT
+
+    def retrieve(self, ticker: str, queries: Sequence[str]) -> list[RetrievedPage]:
+        vectors = self.embedder.embed(list(queries))
+        rankings = [
+            search(self.conn, ticker, self.strategy, q, v, self.embedder.model, mode="hybrid", k=self.k)
+            for q, v in zip(queries, vectors, strict=True)
+        ]
+        keys = merge_page_rankings(rankings, self.n_pages)
+        pages = []
+        for accession, page in keys:
+            row = self.conn.execute(
+                "SELECT f.ticker, f.form, f.filing_date, f.report_date, f.amendment_no, p.label, p.section,"
+                " p.text FROM pages p JOIN filings f USING (accession)"
+                " WHERE p.accession = %s AND p.page_index = %s AND f.ticker = %s",
+                (accession, page, ticker.upper()),
+            ).fetchone()
+            if row is not None:
+                t, form, filed, report, amendment, label, section, text = row
+                pages.append(
+                    RetrievedPage(
+                        accession, page, t, form, str(filed), str(report) if report else None,
+                        amendment, label, section, text,
+                    )
+                )  # fmt: skip
+        return pages

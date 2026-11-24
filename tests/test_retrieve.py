@@ -21,3 +21,14 @@ def test_pages_collapse_to_best_chunk_and_k_limits() -> None:
 
 def test_empty_rankings() -> None:
     assert fuse([[], []]) == []
+
+
+def test_pages_found_by_several_queries_outrank_a_single_first_place() -> None:
+    from app.retrieve import Hit, merge_page_rankings
+
+    q1 = [Hit(A, 1, 0.0, 1), Hit(A, 2, 0.0, 2)]
+    q2 = [Hit(A, 3, 0.0, 3), Hit(A, 2, 0.0, 4)]
+    q3 = [Hit(B, 9, 0.0, 5), Hit(A, 2, 0.0, 6)]
+    assert merge_page_rankings([q1, q2, q3], n=3) == [(A, 2), (A, 1), (A, 3)]
+    assert merge_page_rankings([q1, q2, q3], n=1) == [(A, 2)]
+    assert merge_page_rankings([]) == []

@@ -35,6 +35,23 @@ class Claim(BaseModel):
     figures: list[Figure] = []
 
 
+class RunMeta(BaseModel):
+    """How the note was made (spec R5, R16): tokens and cost, never text."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    model: str = ""
+    prompt_version: str = ""
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    cost: float = 0.0
+    embedding_tokens: int = 0
+    seconds: float = 0.0
+    drafts: int = 0
+    parse_retries: int = 0
+    retrieved: list[tuple[str, int]] = []  # (accession, page) given to the draft step, best first
+
+
 class Note(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -43,3 +60,4 @@ class Note(BaseModel):
     claims: list[Claim] = []
     disclaimer: str = ""
     dropped: dict[str, int] = {}  # claims removed by the validator, by reason (R6)
+    run: RunMeta | None = None

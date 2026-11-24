@@ -2,10 +2,10 @@
 
 PROFILE ?= sandbox
 
-.PHONY: help sso-login sso-whoami install hooks test cov lint fmt typecheck check evals tests-unlock db-up db-down fetch m0-report pages golden-check ingest test-db chunk embed eval-retrieval
+.PHONY: help sso-login sso-whoami install hooks test cov lint fmt typecheck check evals tests-unlock db-up db-down fetch m0-report pages golden-check ingest test-db chunk embed eval-retrieval eval-v0
 
 help:  ## List the targets
-	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-12s %s\n", $$1, $$2}'
+	@grep -E '^[a-z0-9-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-12s %s\n", $$1, $$2}'
 
 sso-login:  ## Log in to AWS SSO (sandbox profile, device code)
 	aws sso login --profile $(PROFILE) --use-device-code
@@ -75,3 +75,6 @@ embed:  ## Embed chunks without an embedding (OpenRouter; resumes after a stop)
 
 eval-retrieval:  ## Recall@10 on the golden set per chunking strategy and search mode
 	uv run python -m app.eval_retrieval
+
+eval-v0:  ## Run the agent on the golden set and score it (chat model calls cost money; ARGS="--ids a,b")
+	uv run python -m app.eval_v0 $(ARGS)
