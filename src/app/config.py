@@ -9,7 +9,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env.local", extra="ignore")
+    # env_ignore_empty: an empty value (as in .env.example) means "not set", so the default applies.
+    model_config = SettingsConfigDict(env_file=".env.local", extra="ignore", env_ignore_empty=True)
 
     model_provider: Literal["bedrock", "openrouter"] = "bedrock"
     model_id: str = "eu.amazon.nova-2-lite-v1:0"
