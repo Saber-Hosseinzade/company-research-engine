@@ -210,8 +210,12 @@ HTML file with a small script, no framework). Compose adds an `app` service next
 6. **Data sent to OpenRouter.** Questions and public filing text go to OpenRouter and the model provider
    behind it. Public data only (S7), but OpenRouter's data retention depends on the chosen provider.
    The M4 embedding endpoint (`nvidia/nemotron-3.5-embed-1b:free`) lists no data policy on
-   OpenRouter; it has seen only filing text and golden questions so far. Real user questions start in
-   M6. Owner: user, before M6.
+   OpenRouter, but its notice (seen by the user, 2026-11-24) says use is logged for security and to
+   improve NVIDIA products, asks for no confidential or personal data, and falls under NVIDIA's API
+   Trial terms. Fine for public filing text and golden questions, which is all it has seen. Not for
+   real user questions: every question is embedded, so it would be logged. Before M6's question page
+   or any deployment, switch `EMBEDDING_MODEL_ID` to a paid endpoint whose provider doesn't train on
+   inputs, then `embed --reset` and re-measure. Owner: user, before M6.
 7. **`.env.example` defaults.** S2 says empty values; the file already shows non-secret defaults. New
    settings follow S2; the existing ones stay as they are until that open item is decided. Owner: user.
 8. **Unauthenticated local API.** S5 forbids unauthenticated endpoints; v0 binds to localhost only, which
