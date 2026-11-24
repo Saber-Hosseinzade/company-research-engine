@@ -194,3 +194,20 @@ def test_redraft_never_loses_valid_claims() -> None:
     note = a.answer("AMD", "How much did revenue grow?")
     assert note.run is not None and note.run.drafts == 2
     assert note.status == "answered" and len(note.claims) == 1
+
+
+def test_failed_redraft_keeps_the_first_drafts_claims() -> None:
+    one_good = Draft.model_validate(
+        {
+            "claims": [
+                GOOD.claims[0].model_dump(),
+                WRONG_PAGE.claims[0].model_dump(),
+                WRONG_PAGE.claims[0].model_dump(),
+            ]
+        }
+    )
+    a, chat, _ = agent([one_good, ModelOutputError("draft: model output failed validation twice")])
+    note = a.answer("AMD", "How much did revenue grow?")
+    assert note.status == "answered" and len(note.claims) == 1
+    assert note.run is not None and note.run.drafts == 2
+    assert [name for name, _ in chat.calls] == ["plan", "draft", "draft"]

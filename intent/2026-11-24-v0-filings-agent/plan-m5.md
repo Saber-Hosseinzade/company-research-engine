@@ -9,7 +9,8 @@ Date: 2026-11-24. Committed as `intent/2026-11-24-v0-filings-agent/plan-m5.md` o
 M0 to M4 built every part except the one that answers: filings and pages, the golden set, the
 validator and retrieval (window chunks + hybrid, recall@10 0.863). M5 joins them into the agent the
 spec describes. It also runs the first end-to-end answer baseline on the golden set, on Haiku 5.5
-with one comparison run on Sonnet 5.5 (user decision), and sets the answer targets from it. The API
+with one comparison run on Sonnet 5.5 (user decision; the Sonnet run was later dropped, see
+Departures), and sets the answer targets from it. The API
 and page come in M6; M5 is called from Python and `make eval-v0`.
 
 ## Design
@@ -76,7 +77,8 @@ data with their accession and page index.
 2. Prompts, then the graph with fakes and its tests.
 3. `DbRetriever` and the `make eval-v0` CLI.
 4. A smoke run on 3 golden items with Haiku. Read the notes before spending on the full set.
-5. Full baseline: Haiku on 50 items, then Sonnet on 50 items. Record both.
+5. Full baseline: Haiku on 50 items, then Sonnet on 50 items. Record both. (Sonnet dropped; see
+   Departures.)
 6. Propose targets from the baseline (you decide), then update the spec, plan departures and
    `PROJECT_CONTEXT.md`.
 
@@ -85,7 +87,7 @@ data with their accession and page index.
 - Per question: about 1k input and 150 output tokens to plan queries, plus about 12k input and 1.5k
   output tokens to draft, with a retry on some questions.
 - Haiku 5.5 ($0.10 / $0.50 per M): about $0.002 per question, about $0.15 per 50-item run.
-- Sonnet 5.5 ($2 / $10 per M): about $0.04 per question, about $2.50 per run.
+- Sonnet 5.5 ($2 / $10 per M): about $0.04 per question, about $2.50 per run. (Not run.)
 - Query embeddings: under a cent.
 - Total for the smoke run and both full runs: about $3.
 
@@ -120,8 +122,8 @@ data with their accession and page index.
   - run metadata carries tokens and retrieved pages.
 - `tests/test_llm.py`: the chat request carries the schema and routing options; usage and cost are
   summed; a parse failure retries once.
-- Measured: the Haiku and Sonnet baselines on 50 golden items, with all metrics above, tokens, cost
-  and time.
+- Measured: the Haiku baseline on 50 golden items (Sonnet dropped), with all metrics above, tokens,
+  cost and time.
 - `make check`, `make typecheck`, `make test` and `make test-db` pass; the `verifier` checks the diff
   against this plan.
 
@@ -158,6 +160,14 @@ data with their accession and page index.
   - page tags in page text are neutralised in any spelling and attribute values are escaped (S10);
   - a response with no choices counts as a parse failure (R18).
   Each has a test.
+- After the PR review (claude-review on PR #10):
+  - a re-draft that fails parsing keeps the first draft's note instead of failing the run, with a
+    test;
+  - `scope` runs before the graph (`check_scope`) and there is no `finish` node: `validate` builds the
+    note and `Agent.answer` adds the metadata (spec Design table updated);
+  - for M6: run metadata is a before/after delta on the shared chat and embedder usage, which is right
+    for one request at a time but would mix tokens between concurrent requests. M6 must give each
+    request its own client usage or serialise requests.
 
 ## Measured (2026-11-24)
 

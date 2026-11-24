@@ -98,19 +98,19 @@ Operation
 full-text top-k, merged by reciprocal rank fusion. No reranker in v0.
 
 **Model access.** OpenRouter's OpenAI-compatible API through the `openai` SDK, for chat (`MODEL_ID`) and
-embeddings (`EMBEDDING_MODEL_ID`). One client module; nothing else knows the model (A1). Timeout 60 s,
-2 retries (estimates, tuned in M5).
+embeddings (`EMBEDDING_MODEL_ID`). One client module; nothing else knows the model (A1). As built:
+chat timeout 120 s, embeddings 60 s, 5 SDK retries, then waits of 15, 30, 60 and 120 s on HTTP 429.
 
 **Graph (LangGraph), one agent.**
 
 | Node | Kind | Job |
 | --- | --- | --- |
-| scope | code | Check ticker and question (R1, R12); load the filings in scope. |
+| scope | code | Check ticker and question (R1, R12). As built (M5): `check_scope` runs before the graph, so a rejected request never enters it. |
 | plan_queries | model | Turn the question into 1–4 search queries. Judgement: questions use words the filings don't. |
 | retrieve | code | Hybrid search per query; dedupe; top chunks with page text. |
 | draft | model | Write claims as structured output: text, citations (chunk ID, excerpt), figures (quoted value or operation on figure IDs). Judgement: which evidence answers the question. |
 | validate | code | R6–R9, R11: match excerpts, check quoted numbers, compute derived figures, label periods, drop failing claims. |
-| finish | code | Not found (R10) or assemble the note, disclaimer, metadata. |
+| finish | code | Not found (R10) or assemble the note, disclaimer, metadata. As built (M5): `validate` builds the note and `Agent.answer` adds the metadata after the graph ends; there is no separate node. |
 
 Failure path (A5): if validation drops more than half the claims, one more `draft` round with the
 failures listed; then finish with what survives, or "not found". Tools are read-only (search over one

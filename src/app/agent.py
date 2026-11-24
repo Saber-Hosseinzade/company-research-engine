@@ -17,7 +17,7 @@ from langgraph.graph import END, START, StateGraph
 
 from app.draft import Draft
 from app.edgar import TICKERS
-from app.llm import ChatModel
+from app.llm import ChatModel, ModelOutputError
 from app.note import Note, RunMeta
 from app.policy import DISCLAIMER
 from app.prompts import (
@@ -103,7 +103,15 @@ class Agent:
         user = draft_user(state["ticker"], state["question"], state["pages"])
         if state.get("feedback"):
             user += "\n\n" + state["feedback"]
-        draft = self.chat.structured(DRAFT_SYSTEM, user, Draft, "draft")
+        try:
+            draft = self.chat.structured(DRAFT_SYSTEM, user, Draft, "draft")
+        except ModelOutputError:
+            if state.get("note") is None:
+                raise  # the first draft failed: the run returns an error (R18)
+            # A failed re-draft never makes the answer worse: keep the previous draft, whose note the
+            # next validation reproduces; the draft count is spent, so the graph then finishes.
+            log.info("re-draft failed validation; keeping the first draft")
+            return {"drafts": drafts}
         return {"draft": draft, "drafts": drafts}
 
     def _validate(self, state: State) -> dict[str, Any]:

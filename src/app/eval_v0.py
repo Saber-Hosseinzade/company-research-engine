@@ -258,7 +258,9 @@ def main(argv: list[str] | None = None) -> int:
         wanted = set(args.ids.split(","))
         items = [i for i in items if i.id in wanted]
     if args.rescore:
-        saved = json.loads(open(args.rescore, encoding="utf-8").read())
+        from pathlib import Path
+
+        saved = json.loads(Path(args.rescore).read_text(encoding="utf-8"))
         by_id = {i.id: i for i in items}
         with connect() as conn:
             pages = db_page_store(conn)
