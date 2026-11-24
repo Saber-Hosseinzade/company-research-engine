@@ -5,7 +5,6 @@ come first. With --edgartools (network), each 10-K also lists edgartools' Items 
 """
 
 import argparse
-import json
 import statistics
 import sys
 from dataclasses import dataclass
@@ -14,7 +13,8 @@ from typing import Any
 
 from app.config import get_settings
 from app.edgar import FILINGS_DIR, keep_edgartools_in_data_dir
-from app.extract import Extraction, extract_pages
+from app.extract import Extraction
+from app.pages import load_filings
 
 EXPECTED_10K_ITEMS = ("Item 1", "Item 1A", "Item 7", "Item 7A", "Item 8")
 
@@ -60,11 +60,7 @@ def summarise(meta: dict[str, Any], extraction: Extraction) -> FilingReport:
 
 
 def load_reports(filings_dir: Path) -> list[FilingReport]:
-    reports = []
-    for meta_path in sorted(filings_dir.glob("*/*/meta.json")):
-        meta = json.loads(meta_path.read_text(encoding="utf-8"))
-        html = (meta_path.parent / meta["primary_document"]).read_bytes()
-        reports.append(summarise(meta, extract_pages(html)))
+    reports = [summarise(f.meta, f.extraction) for f in load_filings(filings_dir)]
     return sorted(reports, key=lambda r: (r.page_breaks > 0, r.ticker, r.filing_date))
 
 

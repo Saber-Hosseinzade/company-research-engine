@@ -2,7 +2,7 @@
 
 PROFILE ?= sandbox
 
-.PHONY: help sso-login sso-whoami install hooks test cov lint fmt typecheck check evals tests-unlock db-up db-down fetch m0-report
+.PHONY: help sso-login sso-whoami install hooks test cov lint fmt typecheck check evals tests-unlock db-up db-down fetch m0-report pages golden-check
 
 help:  ## List the targets
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-12s %s\n", $$1, $$2}'
@@ -54,3 +54,9 @@ fetch:  ## Download the 10-K and 10-K/A filings in scope from EDGAR into data/
 
 m0-report:  ## M0 spike: page and section stats for the fetched filings
 	uv run python -m app.m0_report
+
+pages:  ## Write every fetched page as text under data/pages/ (for reading and search)
+	uv run python -m app.pages
+
+golden-check:  ## Check that every golden quote and figure is on its expected page
+	uv run python -m app.golden
