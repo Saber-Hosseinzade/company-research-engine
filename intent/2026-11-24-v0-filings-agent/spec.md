@@ -217,9 +217,11 @@ HTML file with a small script, no framework). Compose adds an `app` service next
    OpenRouter, but its notice (seen by the user, 2026-11-24) says use is logged for security and to
    improve NVIDIA products, asks for no confidential or personal data, and falls under NVIDIA's API
    Trial terms. It saw only public filing text and golden questions. The user then switched (M4) to
-   `amazon/titan-embed-text-v2`, served by Amazon Bedrock through OpenRouter; OpenRouter lists no data
-   policy for it either. Confirm OpenRouter's and Bedrock's terms for user questions before M6.
-   Owner: user, before M6.
+   `amazon/titan-embed-text-v2`, served by Amazon Bedrock through OpenRouter. Its OpenRouter provider
+   page (seen by the user, 2026-11-24) shows no prompt training, zero retention and zero-data-retention
+   compatibility, so embeddings are resolved. Its anonymity is "requires user IDs": if M6 sends a user
+   identifier, it must be opaque, never a name or email (S7, S9). The chat model's provider terms are
+   still to check in M5. Owner: user.
 7. **`.env.example` defaults.** S2 says empty values; the file already shows non-secret defaults. New
    settings follow S2; the existing ones stay as they are until that open item is decided. Owner: user.
 8. **Unauthenticated local API.** S5 forbids unauthenticated endpoints; v0 binds to localhost only, which
