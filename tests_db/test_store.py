@@ -9,7 +9,8 @@ import pytest
 from app.extract import extract_pages
 from app.ingest import apply_schema, ingest
 from app.pages import Filing
-from app.store import db_page_store
+from app.store import DbSources, db_page_store
+from app.validate import FileSources
 
 FIXTURE = Path(__file__).parents[1] / "tests" / "fixtures" / "mini_10k.html"
 ORIGINAL = "0000002488-26-000018"
@@ -78,3 +79,13 @@ def test_page_store_and_full_text(conn: psycopg.Connection) -> None:
         "SELECT page_index FROM pages WHERE tsv @@ plainto_tsquery('english', 'widget')"
     ).fetchall()
     assert hits == [(3,)]  # stemming: "widget" finds "widgets"
+
+
+def test_db_sources_match_file_sources(conn: psycopg.Connection) -> None:
+    filings = [filing("10-K", ORIGINAL), filing("10-K/A", AMENDMENT)]
+    ingest(conn, filings)
+    db, files = DbSources(conn), FileSources(filings)
+    for accession in (ORIGINAL, AMENDMENT, "missing"):
+        assert db.filing(accession) == files.filing(accession)
+    for key in [(ORIGINAL, 1), (ORIGINAL, 5), (AMENDMENT, 1), (ORIGINAL, 99)]:
+        assert db.page_text(*key) == files.page_text(*key)
