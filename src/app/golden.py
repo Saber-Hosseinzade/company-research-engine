@@ -95,15 +95,24 @@ def check_golden(items: list[GoldenItem], pages: PageStore) -> list[str]:
 
 def main(argv: list[str] | None = None) -> int:
     args = sys.argv[1:] if argv is None else argv
-    path = Path(args[0]) if args else GOLDEN_PATH
+    from_db = "--db" in args
+    paths = [a for a in args if a != "--db"]
+    path = Path(paths[0]) if paths else GOLDEN_PATH
     items = load_golden(path)
-    problems = check_golden(items, page_store(load_filings()))
+    if from_db:
+        from app.store import connect, db_page_store
+
+        with connect() as conn:
+            pages: PageStore = db_page_store(conn)
+    else:
+        pages = page_store(load_filings())
+    problems = check_golden(items, pages)
     for line in problems:
         print(line)
     answerable = sum(1 for i in items if i.kind == "answerable")
     print(
         f"items={len(items)} answerable={answerable} unanswerable={len(items) - answerable} "
-        f"problems={len(problems)}"
+        f"problems={len(problems)} source={'db' if from_db else 'files'}"
     )
     return 1 if problems else 0
 

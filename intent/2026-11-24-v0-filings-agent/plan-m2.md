@@ -83,3 +83,19 @@ unchanged.
   10-K/A having amendment_no 1 and amends = 0000002488-26-000018. `make golden-check` on the
   database page store also gives problems=0, which shows the store matches the files.
 - `make check`, `make typecheck`, `make test` and `make test-db` pass; the `verifier` runs all four.
+
+## Departures found while building (2026-11-24)
+
+- `make golden-check` takes `--db` (`python -m app.golden --db`) to check against the database page
+  store; the Proof's database check needs it.
+- The throwaway schema is per test, not per session, so tests can't see each other's rows.
+- `ingest()` writes 10-Ks before 10-K/As, so the `amends` foreign key always finds its row.
+- A 10-K/A without a report date is not linked (verifier finding: two missing dates would match).
+- Known limits: filings removed from `data/` stay in the database; `ingest` relies on each
+  `conn.transaction()` committing, which holds when called as `make ingest` does.
+
+## Measured (2026-11-24)
+
+- `make ingest` twice: `filings=16 pages=1525` both times. The AMD 10-K/A: amendment_no 1, amends
+  0000002488-26-000018. No filing lacks a report date. No `test_*` schemas left after `make test-db`.
+- `python -m app.golden --db`: items=50 answerable=40 unanswerable=10 problems=0.

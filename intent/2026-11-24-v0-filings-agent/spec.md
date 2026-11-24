@@ -15,7 +15,8 @@ Scope and ingestion
   second. Re-running fetches only what is missing.
 - R3. `make ingest` splits each filing into pages, stores each page's normalised text, and stores chunks
   with metadata: ticker, CIK, accession, form type, filing date, fiscal period end, page index, printed
-  page label (when found), section (10-K Item, when found) (A9).
+  page label (when found), section (10-K Item, when found) (A9). Filings and pages are stored in M2;
+  chunks (with the same metadata) are stored in M4, where the chunking strategy is chosen.
 - R4. A `10-K/A` is stored as its own filing, with its form type and amendment number, and linked to the
   10-K it amends when EDGAR data allows.
 
@@ -138,6 +139,9 @@ HTML file with a small script, no framework). Compose adds an `app` service next
 - **Offline tests (M2–M6):** fetch and ingest on saved filing fixtures; excerpt matcher, arithmetic,
   period labels and advice filter on fixed cases; graph with a fake model, including a model that cites
   a wrong page (must be dropped) and one that states a computed number (must be replaced).
+- **Database tests (`make test-db`, from M2):** schema, ingest and queries against the local Postgres
+  (`make db-up`), each test in a throwaway schema. Not part of `make test` or CI (user decision
+  2026-11-24); each PR touching the database states the `make test-db` result.
 - **Golden set (M1, `golden/v0.jsonl`):** 40 answerable questions (8 per company: figure, change,
   narrative, two-filing, and the AMD 10-K/A) and 10 unanswerable ones (one out of scope and one advice
   request per company), each with the expected filing, page(s), a verbatim quote and key figures.
