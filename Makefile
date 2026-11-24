@@ -2,7 +2,7 @@
 
 PROFILE ?= sandbox
 
-.PHONY: help sso-login sso-whoami install hooks test cov lint fmt typecheck check evals tests-unlock db-up db-down
+.PHONY: help sso-login sso-whoami install hooks test cov lint fmt typecheck check evals tests-unlock db-up db-down fetch m0-report
 
 help:  ## List the targets
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-12s %s\n", $$1, $$2}'
@@ -48,3 +48,9 @@ db-up:  ## Start Postgres + pgvector in Docker
 
 db-down:  ## Stop Postgres (data kept in the volume)
 	docker compose down
+
+fetch:  ## Download the 10-K and 10-K/A filings in scope from EDGAR into data/
+	uv run python -m app.edgar
+
+m0-report:  ## M0 spike: page and section stats for the fetched filings
+	uv run python -m app.m0_report
