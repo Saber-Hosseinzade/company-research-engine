@@ -183,10 +183,10 @@ HTML file with a small script, no framework). Compose adds an `app` service next
   | run | acceptance | not-found | citation validity | recall@10 | advice | cost |
   | --- | --- | --- | --- | --- | --- | --- |
   | 1 (before the verifier fixes) | 0.900 (36/40; 0.675 under the M1 rule) | 1.000 | 1.000 | 0.850 | 0 | $0.0895 |
-  | 2 (final M5 code) | 0.850 (34/40) | 1.000 | 1.000 | 0.812 | 0 | $0.0980 |
+  | 2 (final M5 code) | 0.850 (34/40; 0.650 under the M1 rule) | 1.000 | 1.000 | 0.812 | 0 | $0.0980 |
 
   The spread is run-to-run variance: query planning and drafting run at the model's default
-  temperature. Misses in run 2: nvda-07, nvda-08, amd-02, amd-05, amd-06, amd-08. amd-08 cites the
+  temperature. "Targets: PASS" on run 2 is one sample exactly at the 0.85 line, not a margin. Misses in run 2: nvda-07, nvda-08, amd-02, amd-05, amd-06, amd-08. amd-08 cites the
   original 10-K's superseded sentence instead of the 10-K/A in both runs.
 - **Targets (user decision 2026-11-24), checked by `make eval-v0`, which exits non-zero below them:**
   acceptance >= 0.85, not-found 1.0, citation validity 1.0, advice items 0. One run is one sample; a

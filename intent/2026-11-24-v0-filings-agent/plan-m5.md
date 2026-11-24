@@ -168,6 +168,10 @@ data with their accession and page index.
   - for M6: run metadata is a before/after delta on the shared chat and embedder usage, which is right
     for one request at a time but would mix tokens between concurrent requests. M6 must give each
     request its own client usage or serialise requests.
+- After the second PR review: tests for `merge_page_rankings` (offline) and `DbRetriever` (one
+  company, page details; `make test-db`); `make eval-v0` counts any per-item exception as an error
+  instead of aborting the run; `make help` lists targets with digits; run 2 under the M1 rule is
+  0.650 (26/40), now in the spec.
 
 ## Measured (2026-11-24)
 

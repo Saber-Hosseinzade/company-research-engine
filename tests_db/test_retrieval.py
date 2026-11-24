@@ -136,3 +136,18 @@ def test_interrupted_embed_keeps_finished_batches(
     loaded.rollback()  # what `with connect()` does when the run fails
     saved = reopen().execute("SELECT count(*) FROM chunks WHERE embedding IS NOT NULL").fetchone()
     assert saved == (10,)
+
+
+def test_db_retriever_returns_pages_of_one_company_with_details(loaded: psycopg.Connection) -> None:
+    from app.retrieve import DbRetriever
+
+    embedder = FakeEmbedder()
+    embed_chunks(loaded, embedder)
+    pages = DbRetriever(loaded, embedder, strategy="window", n_pages=3).retrieve(
+        "amd", ["widgets", "revenue"]
+    )
+    assert pages and all(p.accession == "0000002488-26-000018" and p.ticker == "AMD" for p in pages)
+    assert 3 in {p.page for p in pages}  # the "widgets" page; the fake embedder ties the rest
+    first = pages[0]
+    assert (first.form, first.filing_date, first.report_date) == ("10-K", "2026-02-04", "2025-12-27")
+    assert first.text  # full page text, not a chunk

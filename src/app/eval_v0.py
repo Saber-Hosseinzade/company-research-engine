@@ -297,6 +297,10 @@ def main(argv: list[str] | None = None) -> int:
             except ModelOutputError as exc:
                 note, error = Note(status="not_found"), str(exc)
                 errors += 1
+            except Exception as exc:  # e.g. HTTP error after retries: count it, keep the paid results
+                conn.rollback()
+                note, error = Note(status="not_found"), type(exc).__name__
+                errors += 1
             retrieved = note.run.retrieved if note.run else []
             s = score(item, AnswerResult(note, retrieved=retrieved), pages)
             if error is not None:

@@ -110,7 +110,7 @@ class Agent:
                 raise  # the first draft failed: the run returns an error (R18)
             # A failed re-draft never makes the answer worse: keep the previous draft, whose note the
             # next validation reproduces; the draft count is spent, so the graph then finishes.
-            log.info("re-draft failed validation; keeping the first draft")
+            log.info("re-draft failed parsing; keeping the first draft")
             return {"drafts": drafts}
         return {"draft": draft, "drafts": drafts}
 
