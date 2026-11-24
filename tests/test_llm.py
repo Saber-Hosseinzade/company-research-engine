@@ -45,3 +45,50 @@ def test_missing_settings_stop_with_a_message() -> None:
         get_embedder(Settings(_env_file=None, openrouter_api_key="k"))
     with pytest.raises(ModelNotConfigured, match="OPENROUTER_API_KEY"):
         get_embedder(Settings(_env_file=None, embedding_model_id="m", openrouter_api_key=None))
+
+
+class RateLimited(Exception):
+    status_code = 429
+
+
+def test_rate_limit_waits_then_succeeds() -> None:
+    class Flaky(FakeEmbeddings):
+        failures = 2
+
+        def create(self, model: str, input: list[str]) -> Any:
+            if self.failures:
+                self.failures -= 1
+                raise RateLimited()
+            return super().create(model, input)
+
+    waits: list[float] = []
+    embedder = OpenRouterEmbedder(client=SimpleNamespace(embeddings=Flaky()), model="m")
+    embedder.sleep = waits.append
+    assert len(embedder.embed(["a", "b"])) == 2
+    assert waits == [15.0, 30.0] and embedder.usage.rate_limit_waits == 2
+
+
+def test_rate_limit_gives_up_after_the_last_wait() -> None:
+    class Always(FakeEmbeddings):
+        def create(self, model: str, input: list[str]) -> Any:
+            raise RateLimited()
+
+    waits: list[float] = []
+    embedder = OpenRouterEmbedder(client=SimpleNamespace(embeddings=Always()), model="m")
+    embedder.sleep = waits.append
+    with pytest.raises(RateLimited):
+        embedder.embed(["a"])
+    assert waits == [15.0, 30.0, 60.0, 120.0]
+
+
+def test_other_errors_are_not_retried() -> None:
+    class Broken(FakeEmbeddings):
+        def create(self, model: str, input: list[str]) -> Any:
+            raise ValueError("bad request")
+
+    waits: list[float] = []
+    embedder = OpenRouterEmbedder(client=SimpleNamespace(embeddings=Broken()), model="m")
+    embedder.sleep = waits.append
+    with pytest.raises(ValueError):
+        embedder.embed(["a"])
+    assert waits == []

@@ -1,6 +1,6 @@
 """Database tests for chunking, embedding and hybrid search (`make test-db`), with a fake embedder."""
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -120,3 +120,19 @@ def test_search_ignores_chunks_from_another_model(loaded: psycopg.Connection) ->
 
 def test_embed_before_chunk_creates_the_schema(conn: psycopg.Connection) -> None:
     assert embed_chunks(conn, FakeEmbedder()) == 0
+
+
+def test_interrupted_embed_keeps_finished_batches(
+    loaded: psycopg.Connection, reopen: Callable[[], psycopg.Connection]
+) -> None:
+    class FailsOnSecondBatch(FakeEmbedder):
+        def embed(self, texts: Sequence[str]) -> list[list[float]]:
+            if self.calls == 1:
+                raise RuntimeError("HTTP 429")
+            return super().embed(texts)
+
+    with pytest.raises(RuntimeError, match="429"):
+        embed_chunks(loaded, FailsOnSecondBatch(), batch=10)
+    loaded.rollback()  # what `with connect()` does when the run fails
+    saved = reopen().execute("SELECT count(*) FROM chunks WHERE embedding IS NOT NULL").fetchone()
+    assert saved == (10,)

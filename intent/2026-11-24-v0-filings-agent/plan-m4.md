@@ -163,3 +163,25 @@ are written to `data/evals/`. The strategy with the best hybrid recall@10 is kep
   window 0.825 vector / 0.650 full-text / 0.725 hybrid; page 0.838 / 0.713 / 0.838. **Kept: page
   strategy, hybrid search.** The misses: nvda-05, nvda-08, amd-04, amd-05, meta-02, meta-04, meta-08
   (5 change questions, 2 headcount).
+
+## Model switch and two bugs (2026-11-24, after the first commit)
+
+- User decision: switch the embedding model to `amazon/titan-embed-text-v2` (OpenRouter, Amazon
+  Bedrock), after seeing that the free NVIDIA endpoint logs inputs for product improvement.
+- Bug: a run that failed partway lost every batch it had finished. `connect()` didn't use
+  autocommit, so after the first read every `transaction()` block was a savepoint in one long
+  transaction, rolled back on failure. The first Titan run hit HTTP 429 after 47 batches and kept
+  none of them. Fixed test-first: `connect()` uses autocommit, the DB tests no longer force autocommit
+  (they missed the bug), and `test_interrupted_embed_keeps_finished_batches` checks from a fresh
+  connection.
+- Rate limits: the embedder waits 15, 30, 60 and 120 s on HTTP 429 before giving up, on top of the
+  SDK's short retries, and counts the waits.
+
+## Measured with Titan (2026-11-24)
+
+- `make embed`: 7,465 chunks, 234 requests, 2,641,237 tokens (about $0.05), 970 s, 9 rate-limit
+  waits, 1,024 dimensions. The failed first attempt also billed about 47 batches.
+- `make eval-retrieval`, recall@10 over 40 questions: window 0.787 vector / 0.650 full-text / 0.863
+  hybrid; page 0.738 / 0.713 / 0.775. **Kept: window strategy, hybrid search** (this replaces the
+  page decision made with the NVIDIA model). Misses: nvda-08, amd-04, amd-05, amd-08, meta-04,
+  meta-08, goog-08.

@@ -194,7 +194,7 @@ def main(argv: list[str] | None = None) -> int:
                 return 2
             u = embedder.usage
             print(
-                f"embedded={n} requests={u.requests} tokens={u.tokens} "
+                f"embedded={n} requests={u.requests} tokens={u.tokens} waits={u.rate_limit_waits} "
                 f"seconds={time.monotonic() - started:.1f}"
             )
         else:
