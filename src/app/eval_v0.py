@@ -347,9 +347,6 @@ def _run(
 
     summary = summarise(scores)
     seconds = time.monotonic() - started
-    runs = [
-        r.note.run for r in (AnswerResult(Note.model_validate(row["note"])) for row in rows) if r.note.run
-    ]
     usage = {
         "prompt_tokens": sum(r.prompt_tokens for r in runs),
         "completion_tokens": sum(r.completion_tokens for r in runs),

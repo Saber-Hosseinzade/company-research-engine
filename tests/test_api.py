@@ -194,3 +194,15 @@ def test_logs_carry_no_question_filing_or_model_text(
     assert not [r for r in caplog.records if r.exc_info]  # no traceback logged
     app_lines = [r.getMessage() for r in caplog.records if r.name.startswith("app.")]  # not the test client
     assert not [line for line in app_lines if "secret" in line]
+
+
+def test_startup_starts_the_supabase_check(monkeypatch: pytest.MonkeyPatch) -> None:
+    import threading
+
+    from app import supabase
+
+    ran = threading.Event()
+    monkeypatch.setattr(supabase, "check_configured", ran.set)
+    with TestClient(app) as started:  # runs the lifespan
+        assert started.get("/ping").status_code == 200
+    assert ran.wait(timeout=5)

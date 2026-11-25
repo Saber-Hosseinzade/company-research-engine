@@ -92,3 +92,11 @@ def test_malformed_secret_fails_without_its_value(
     with pytest.raises(SecretError) as caught:
         get_settings()
     assert "sk-secret" not in str(caught.value)
+
+
+def test_env_example_lists_every_new_deployment_setting() -> None:
+    # AgentCore spec R6: each new setting is listed in .env.example with an empty value (S2).
+    lines = (Path(__file__).parents[1] / ".env.example").read_text().splitlines()
+    for name in ("APP_SECRET_ID", "DB_CLUSTER_ARN", "DB_SECRET_ARN", "DB_NAME", "SUPABASE_DATABASE_URL"):
+        assert f"{name}=" in lines, name
+        assert name.lower() in Settings.model_fields

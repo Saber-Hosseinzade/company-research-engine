@@ -22,7 +22,7 @@ is built and tested now; R12–R17 deploy, R10 and R19 measurements wait for it.
   `eval_v0.py` (answerer choice, `--runtime-arn`)
 - New: `src/app/dataapi.py` (`DataApiConnection`), `src/app/db_copy.py`, `src/app/supabase.py`,
   `src/app/runtime_client.py` (`RuntimeAnswerer`, `make invoke`)
-- New: `infra/` (`app.py`, `stack.py`, `cdk.json`, `package.json` + `package-lock.json` pinning the CDK CLI,
+- New: `infra/` (`main.py`, `research_stack.py`, `cdk.json`, `package.json` + `package-lock.json` pinning the CDK CLI,
   `README.md` with teardown)
 - `Dockerfile` (port 8080, `--no-default-groups`), `compose.yaml` (pg18, new volume, 8000→8080),
   `.dockerignore` (+ `infra`, `cdk.out`, `tests*`), `pyproject.toml` + `uv.lock` (`fetch` and `infra` groups,
@@ -142,7 +142,8 @@ is built and tested now; R12–R17 deploy, R10 and R19 measurements wait for it.
 - **Role statements from the Runtime construct (R13).** `agentcore.Runtime` adds its own statements to the
   execution role: ECR pull from the bootstrap asset repository, log groups under
   `/aws/bedrock-agentcore/runtimes/*`, X-Ray and `cloudwatch:PutMetricData`, and workload access tokens.
-  X-Ray and `PutMetricData` accept only resource `*`; their actions are specific, so no statement has
+  X-Ray and `PutMetricData` accept only resource `*`, as do `ecr:GetAuthorizationToken` and
+  `logs:DescribeLogGroups` (on `log-group:*`); their actions are specific, so no statement has
   `*` on both action and resource (S4), which `tests/test_infra.py` asserts. The stack's own statements
   are secrets (app + cluster) and the two `rds-data` actions only.
 - **App secret placeholder.** CDK's `Secret` cannot be created without a value, so CloudFormation fills it
@@ -159,5 +160,8 @@ is built and tested now; R12–R17 deploy, R10 and R19 measurements wait for it.
   `golden-check-aurora` read.
 - **Eval cost totals** are summed from each note's `run` metadata (works for remote answers); tokens of
   items that errored are no longer counted.
+- **Files:** also changed `src/app/chunks.py` (`Conn` hints, `connect_pg`), `.gitignore`,
+  `tests_db/test_retrieval.py` (both-modes test); the remote eval tests are in
+  `tests/test_runtime_client.py`, not `tests/test_eval_v0.py`; `src/app/validate.py` needed no change.
 - **Both-modes DB tests** compare results through `DataApiConnection` (fake client on local Postgres)
   with psycopg in one test, rather than parametrising every `tests_db` test.

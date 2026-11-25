@@ -108,7 +108,8 @@ def link_amendments(rows: Iterable[FilingRow]) -> list[FilingRow]:
 def schema_statements() -> list[str]:
     """schema.sql split into single statements: the RDS Data API runs one per call.
 
-    Comments are dropped first; the file has no `;` inside a statement body (tests/test_ingest.py).
+    Comments are dropped first; the file has no `;` inside a statement body
+    (checked by the statement count in tests/test_dataapi.py).
     """
     sql = resources.files("app").joinpath("schema.sql").read_text(encoding="utf-8")
     lines = [line.split("--", 1)[0] for line in sql.splitlines()]
