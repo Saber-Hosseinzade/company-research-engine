@@ -89,7 +89,8 @@ def copy(
 
     `embedding_model` is the model the deployed runtime embeds queries with; the chunks must match it.
     """
-    # Every check before the first write: a refused copy leaves the target as it was.
+    # Source checks run before anything touches the target. The non-empty check needs the schema, so a
+    # refused copy may have applied it (idempotent, no rows); it never truncates or drops data.
     models = source.execute(
         "SELECT DISTINCT embedding_model FROM chunks WHERE strategy = %s AND embedding_model IS NOT NULL",
         (AGENT_STRATEGY,),
