@@ -13,7 +13,7 @@ sudo chown -R vscode:vscode /home/vscode/.claude /home/vscode/.config/gh /home/v
 sudo chown vscode:vscode /home/vscode/.config /home/vscode/.cache
 
 # uv manages Python dependencies. Pinned, so a rebuild gets the same version.
-pip install -q --user uv==0.13.6
+pip install -q --user uv==0.13.10
 
 # The virtualenv lives outside the bind-mounted workspace (UV_PROJECT_ENVIRONMENT,
 # set in devcontainer.json), so a .venv created on the host can't collide with it.

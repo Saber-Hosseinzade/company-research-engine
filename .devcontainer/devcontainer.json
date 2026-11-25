@@ -5,6 +5,9 @@
   "build": { "dockerfile": "Dockerfile" },
 
   "features": {
+    // Node 24: the newest Node the AWS CDK CLI supports (infra/). Installed before Claude Code, so that
+    // feature finds Node and doesn't add its own older one.
+    "ghcr.io/devcontainers/features/node:1": { "version": "24" },
     "ghcr.io/devcontainers/features/aws-cli:1": { },
     "ghcr.io/devcontainers/features/github-cli:1": { },
     // Its own Docker daemon inside the container: builds images and runs compose.yaml.
@@ -14,6 +17,10 @@
     // Claude Code CLI + the VS Code extension (the feature adds both)
     "ghcr.io/anthropics/devcontainer-features/claude-code:1.0": { }
   },
+  "overrideFeatureInstallOrder": [
+    "ghcr.io/devcontainers/features/node",
+    "ghcr.io/anthropics/devcontainer-features/claude-code"
+  ],
   // Runs on the host before the build: creates the mounted folders (the container won't start without
   // them) and the git-ignored PROJECT_CONTEXT.md from its template.
   "initializeCommand": "sh .devcontainer/initialize.sh ${localWorkspaceFolderBasename}",

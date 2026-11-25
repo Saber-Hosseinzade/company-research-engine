@@ -1,5 +1,5 @@
 # Dev container image only. The app image is the Dockerfile at the repo root.
-FROM mcr.microsoft.com/devcontainers/python:1-3.12-bookworm
+FROM mcr.microsoft.com/devcontainers/python:2-3.14-trixie
 
 # The base image ships a Yarn apt repository whose signing key is no longer valid, so every
 # `apt-get update` fails, and with it any feature that installs packages (docker-in-docker).

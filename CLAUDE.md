@@ -13,7 +13,7 @@ claim and figure cites a filing page; citations and arithmetic are checked in co
 Analysis only: no buy/sell/hold, ratings, lending decisions or investment advice. Public filings only
 (SEC EDGAR first). Status: planning; v0 is a single filings agent over 10-Ks.
 
-Python 3.12 on AWS. Code in `src/app/`, offline tests in `tests/`, local Postgres + pgvector in
+Python 3.14 on AWS. Code in `src/app/`, offline tests in `tests/`, local Postgres + pgvector in
 `compose.yaml` (`make db-up`).
 
 ## Verifying your work
