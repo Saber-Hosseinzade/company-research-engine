@@ -136,3 +136,28 @@ is built and tested now; R12–R17 deploy, R10 and R19 measurements wait for it.
 | R12–R15, R17 | `tests/test_infra.py` synth assertions; teardown section reviewed |
 | R16 | Make targets pinned to sandbox / eu-central-1; deploy and destroy asked before running |
 | R18, R20 | log lines reviewed; `make test` offline |
+
+## Departures (recorded during the build)
+
+- **Role statements from the Runtime construct (R13).** `agentcore.Runtime` adds its own statements to the
+  execution role: ECR pull from the bootstrap asset repository, log groups under
+  `/aws/bedrock-agentcore/runtimes/*`, X-Ray and `cloudwatch:PutMetricData`, and workload access tokens.
+  X-Ray and `PutMetricData` accept only resource `*`; their actions are specific, so no statement has
+  `*` on both action and resource (S4), which `tests/test_infra.py` asserts. The stack's own statements
+  are secrets (app + cluster) and the two `rds-data` actions only.
+- **App secret placeholder.** CDK's `Secret` cannot be created without a value, so CloudFormation fills it
+  with a random `{"placeholder": …}`. The user sets the real JSON with the AWS CLI (infra/README.md). No
+  secret value is in CDK, synth output or Git.
+- **No custom resource for the default security group.** `restrict_default_security_group=False`, so the
+  stack has no Lambda; nothing uses the default group.
+- **`.dockerignore` is an allow-list** (`pyproject.toml`, `uv.lock`, `README.md`, `src`): the CDK asset
+  staging otherwise copied local-only files such as `PROJECT_CONTEXT.md` into `infra/cdk.out`.
+- **mypy skips `aws_cdk`, `constructs`, `jsii`** (`follow_imports = "skip"`): analysing aws-cdk-lib was
+  killed for memory in the dev container. The stack is checked by the synth test instead.
+- **Extra Make targets:** `synth`, `bootstrap`, `outputs`, `golden-check-aurora` (R10 against Aurora).
+  Deploy outputs go to the git-ignored `infra/cdk-outputs.json`, which `invoke`, `db-copy` and
+  `golden-check-aurora` read.
+- **Eval cost totals** are summed from each note's `run` metadata (works for remote answers); tokens of
+  items that errored are no longer counted.
+- **Both-modes DB tests** compare results through `DataApiConnection` (fake client on local Postgres)
+  with psycopg in one test, rather than parametrising every `tests_db` test.

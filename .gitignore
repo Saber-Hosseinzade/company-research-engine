@@ -20,9 +20,10 @@ htmlcov/
 build/
 dist/
 
-# CDK (when infra/ is added)
+# CDK (infra/): synth output, lookups and deploy outputs (account IDs: never committed)
 cdk.out/
 cdk.context.json
+cdk-outputs.json
 
 # Downloaded and generated data: fetched by script, never committed
 data/
@@ -45,3 +46,4 @@ PROJECT_CONTEXT.md
 
 # CI logs
 ci.log
+node_modules/

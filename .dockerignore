@@ -1,19 +1,8 @@
-# Only pyproject.toml, uv.lock, README.md and src/ are needed in the image.
-.git
-.venv
-.env
-.env.*
-data
-evals
-golden
-intent
-maintain
-tests
-tests_db
+# Allow-list: the image needs only these (Dockerfile). Everything else stays out of the build context,
+# including the CDK asset copy that `make deploy` stages under infra/cdk.out.
+*
+!pyproject.toml
+!uv.lock
+!README.md
+!src
 **/__pycache__
-**/.pytest_cache
-**/.mypy_cache
-**/.ruff_cache
-infra
-cdk.out
-node_modules

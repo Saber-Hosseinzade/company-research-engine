@@ -1,0 +1,9 @@
+{
+  "name": "company-research-engine-infra",
+  "private": true,
+  "description": "Pins the CDK CLI used by make deploy, destroy and synth (npm ci).",
+  "engines": { "node": ">=24" },
+  "devDependencies": {
+    "aws-cdk": "2.1149.0"
+  }
+}

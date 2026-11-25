@@ -2,7 +2,8 @@
 
 PROFILE ?= sandbox
 
-.PHONY: help sso-login sso-whoami install hooks test cov lint fmt typecheck check evals tests-unlock db-up db-down fetch m0-report pages golden-check ingest test-db chunk embed eval-retrieval eval-v0 serve up
+.PHONY: help sso-login sso-whoami install hooks test cov lint fmt typecheck check evals tests-unlock db-up db-down fetch m0-report pages golden-check ingest test-db chunk embed eval-retrieval eval-v0 serve up \
+	synth bootstrap deploy destroy invoke db-copy outputs golden-check-aurora
 
 help:  ## List the targets
 	@grep -E '^[a-z0-9-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-12s %s\n", $$1, $$2}'
@@ -76,7 +77,7 @@ embed:  ## Embed chunks without an embedding (OpenRouter; resumes after a stop)
 eval-retrieval:  ## Recall@10 on the golden set per chunking strategy and search mode
 	uv run python -m app.eval_retrieval
 
-eval-v0:  ## Run the agent on the golden set and score it (chat model calls cost money; ARGS="--ids a,b")
+eval-v0:  ## Score the agent on the golden set (costs money; ARGS="--ids a,b" or "--runtime-arn <arn>")
 	uv run python -m app.eval_v0 $(ARGS)
 
 serve:  ## Run the API and question page locally with reload (http://127.0.0.1:8000)
@@ -84,3 +85,37 @@ serve:  ## Run the API and question page locally with reload (http://127.0.0.1:8
 
 up:  ## Build and start the app and Postgres in Docker (http://127.0.0.1:8000)
 	docker compose up -d --build
+
+# --- AgentCore deployment (infra/, AgentCore spec R16). Sandbox profile and eu-central-1 only. -------------
+AWS_ENV = AWS_PROFILE=sandbox AWS_REGION=eu-central-1 AWS_DEFAULT_REGION=eu-central-1
+CDK = cd infra && npm ci --no-audit --no-fund --silent && $(AWS_ENV) npx cdk
+OUTPUTS = infra/cdk-outputs.json
+output = $(shell python3 -c "import json;print(json.load(open('$(OUTPUTS)'))['CompanyResearchEngine']['$(1)'])" 2>/dev/null)
+TICKER ?= NVDA
+Q ?= What was total revenue in the latest fiscal year?
+
+synth:  ## Synthesise the AgentCore stack locally (no AWS changes; OWNER=<name>)
+	$(CDK) synth --quiet
+
+bootstrap:  ## One-time CDK bootstrap of the sandbox account in eu-central-1 (creates AWS resources)
+	$(CDK) bootstrap
+
+deploy:  ## Deploy the AgentCore stack (creates AWS resources that cost money; OWNER=<name>)
+	$(CDK) deploy --outputs-file cdk-outputs.json
+
+destroy:  ## Delete the AgentCore stack and its database (asks to confirm; see infra/README.md)
+	$(CDK) destroy
+
+outputs:  ## Show the deployed stack's outputs (runtime and cluster ARNs)
+	@cat $(OUTPUTS)
+
+invoke:  ## Ask the deployed agent one question (TICKER=NVDA Q="...")
+	$(AWS_ENV) uv run python -m app.runtime_client --runtime-arn "$(call output,RuntimeArn)" "$(TICKER)" "$(Q)"
+
+db-copy:  ## Copy filings, pages and window chunks from local Postgres to Aurora (ARGS=--replace)
+	$(AWS_ENV) DB_CLUSTER_ARN="$(call output,ClusterArn)" DB_SECRET_ARN="$(call output,ClusterSecretArn)" \
+		uv run python -m app.db_copy $(ARGS)
+
+golden-check-aurora:  ## Check every golden quote and figure against the pages in Aurora (after db-copy)
+	$(AWS_ENV) DB_CLUSTER_ARN="$(call output,ClusterArn)" DB_SECRET_ARN="$(call output,ClusterSecretArn)" \
+		uv run python -m app.golden --db

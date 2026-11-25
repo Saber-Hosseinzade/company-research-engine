@@ -1,0 +1,5 @@
+{
+  "app": "uv run python main.py",
+  "requireApproval": "broadening",
+  "context": {}
+}

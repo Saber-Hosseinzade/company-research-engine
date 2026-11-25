@@ -51,7 +51,7 @@ packages = ["src/app"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["maintain"]  # repo tooling outside the app package
+pythonpath = ["maintain", "infra"]  # repo tooling and the CDK app, outside the app package
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 
@@ -61,8 +61,8 @@ branch = true
 
 [tool.mypy]
 python_version = "3.14"
-files = ["src", "tests", "tests_db", "maintain"]
-mypy_path = "maintain"
+files = ["src", "tests", "tests_db", "maintain", "infra"]
+mypy_path = "maintain:infra"
 strict = true
 plugins = ["pydantic.mypy"]
 
@@ -70,6 +70,13 @@ plugins = ["pydantic.mypy"]
 # boto3 ships no type hints; calls go through small typed wrappers (app.dataapi, app.config).
 module = ["boto3", "boto3.*", "botocore", "botocore.*"]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# aws-cdk-lib is too large for mypy to analyse in the dev container (killed for memory); its calls are
+# checked by synthesising the stack in tests/test_infra.py instead.
+module = ["aws_cdk", "aws_cdk.*", "constructs", "constructs.*", "jsii", "jsii.*"]
+follow_imports = "skip"
+follow_untyped_imports = false
 
 [tool.ruff]
 line-length = 110
