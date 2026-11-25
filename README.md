@@ -3,8 +3,10 @@
 Given a listed company and a question, returns a research note in which every claim and figure cites a
 page of a public filing. Citations and arithmetic are checked in code, never by the model.
 
-> **Status:** planning. Nothing is built yet. The first version (v0) is a single filings agent that
-> answers questions over SEC 10-K filings with validated citations, run locally.
+> **Status:** v0, local only. A single filings agent answers questions about NVDA, AMD, META, GOOG and
+> AMZN from their 10-K and 10-K/A filings since 2024, with citations checked in code. On a 50-question
+> golden set it accepted 0.850 and 0.900 of answerable questions over two runs (Haiku 5.5). The API has
+> no authentication and binds to localhost only.
 
 ## What it is not
 
@@ -21,12 +23,20 @@ script into `data/` and are not committed.
 Open the folder in the dev container (VS Code: *Reopen in Container*), then:
 
 ```bash
-cp .env.example .env.local   # fill in what you need
+cp .env.example .env.local   # MODEL_PROVIDER=openrouter, MODEL_ID, OPENROUTER_API_KEY,
+                             # EMBEDDING_MODEL_ID, SEC_USER_AGENT
 make test                    # offline tests
-make db-up                   # Postgres + pgvector, if the project uses it
+make db-up                   # Postgres + pgvector
+make fetch ingest chunk embed  # download filings, load pages, build and embed chunks
+make up                      # build and start the app: http://127.0.0.1:8000
 ```
 
-The model is configuration: set `MODEL_PROVIDER` (`bedrock` or `openrouter`) and `MODEL_ID` in `.env.local`.
+The page at `/` takes a company and a question and shows the note; each citation opens the stored filing
+page with the quoted text highlighted and a link to the original on EDGAR. The API is
+`POST /research {"ticker": "NVDA", "question": "..."}`, which returns the note as JSON. `make serve` runs
+the same app outside Docker with reload.
+
+The model is configuration: `MODEL_ID` in `.env.local` (v0 builds only `MODEL_PROVIDER=openrouter`).
 
 ## Development
 

@@ -9,7 +9,7 @@ import pytest
 from app.extract import extract_pages
 from app.ingest import apply_schema, ingest
 from app.pages import Filing
-from app.store import DbSources, db_page_store
+from app.store import DbSources, db_page_store, page_view
 from app.validate import FileSources
 
 FIXTURE = Path(__file__).parents[1] / "tests" / "fixtures" / "mini_10k.html"
@@ -89,3 +89,14 @@ def test_db_sources_match_file_sources(conn: psycopg.Connection) -> None:
         assert db.filing(accession) == files.filing(accession)
     for key in [(ORIGINAL, 1), (ORIGINAL, 5), (AMENDMENT, 1), (ORIGINAL, 99)]:
         assert db.page_text(*key) == files.page_text(*key)
+
+
+def test_page_view_joins_filing_and_builds_edgar_link(conn: psycopg.Connection) -> None:
+    f = filing("10-K", ORIGINAL)
+    ingest(conn, [f])
+    first = f.extraction.pages[0]
+    view = page_view(conn, ORIGINAL, first.index)
+    assert view is not None
+    assert (view.ticker, view.form, view.filing_date, view.text) == ("AMD", "10-K", "2026-02-04", first.text)
+    assert view.edgar_url == "https://www.sec.gov/Archives/edgar/data/2488/000000248826000018/doc.htm"
+    assert page_view(conn, ORIGINAL, 999) is None

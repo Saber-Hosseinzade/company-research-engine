@@ -2,7 +2,7 @@
 
 PROFILE ?= sandbox
 
-.PHONY: help sso-login sso-whoami install hooks test cov lint fmt typecheck check evals tests-unlock db-up db-down fetch m0-report pages golden-check ingest test-db chunk embed eval-retrieval eval-v0
+.PHONY: help sso-login sso-whoami install hooks test cov lint fmt typecheck check evals tests-unlock db-up db-down fetch m0-report pages golden-check ingest test-db chunk embed eval-retrieval eval-v0 serve up
 
 help:  ## List the targets
 	@grep -E '^[a-z0-9-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-12s %s\n", $$1, $$2}'
@@ -78,3 +78,9 @@ eval-retrieval:  ## Recall@10 on the golden set per chunking strategy and search
 
 eval-v0:  ## Run the agent on the golden set and score it (chat model calls cost money; ARGS="--ids a,b")
 	uv run python -m app.eval_v0 $(ARGS)
+
+serve:  ## Run the API and question page locally with reload (http://127.0.0.1:8000)
+	uv run uvicorn app.api:app --reload --host 127.0.0.1 --port 8000 --no-access-log
+
+up:  ## Build and start the app and Postgres in Docker (http://127.0.0.1:8000)
+	docker compose up -d --build
