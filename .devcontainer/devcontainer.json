@@ -5,7 +5,8 @@
   "build": { "dockerfile": "Dockerfile" },
 
   "features": {
-    // Node 24: the newest Node the AWS CDK CLI supports (infra/). Installed before Claude Code, so that
+    // Node 24: the newest Node the AWS CDK CLI supports, for the AgentCore step's infra/ (planned, not yet
+    // in the repo). Installed before Claude Code, so that
     // feature finds Node and doesn't add its own older one.
     "ghcr.io/devcontainers/features/node:1": { "version": "24" },
     "ghcr.io/devcontainers/features/aws-cli:1": { },
