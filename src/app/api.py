@@ -14,9 +14,10 @@ Nothing identifying the user is sent to OpenRouter (spec concern 6).
 import html
 import logging
 import re
+import threading
 import time
-from collections.abc import Callable, Iterator
-from contextlib import AbstractContextManager, contextmanager
+from collections.abc import AsyncIterator, Callable, Iterator
+from contextlib import AbstractContextManager, asynccontextmanager, contextmanager
 from pathlib import Path
 from typing import Annotated
 
@@ -71,7 +72,16 @@ def page_lookup() -> PageLookup:
     return db_page
 
 
-app = FastAPI(title="company-research-engine", docs_url=None, redoc_url=None)
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    # In the background: /ping answers at once, and the check never blocks or stops startup (R11).
+    from app.supabase import check_configured
+
+    threading.Thread(target=check_configured, name="supabase-check", daemon=True).start()
+    yield
+
+
+app = FastAPI(title="company-research-engine", docs_url=None, redoc_url=None, lifespan=lifespan)
 
 
 @app.get("/ping")

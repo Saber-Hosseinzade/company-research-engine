@@ -12,13 +12,14 @@ M5 implements `Answerer` and adds `make eval-v0`.
 """
 
 import re
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Protocol
 
 from app.citations import excerpt_on_page, figure_in_text, normalise
 from app.golden import GoldenItem
-from app.note import Note
+from app.note import Note, RunMeta
 from app.pages import PageStore
 from app.policy import contains_advice
 
@@ -236,14 +237,12 @@ def main(argv: list[str] | None = None) -> int:
     import json
     import logging
     import sys
-    import time
-    from collections import Counter
-    from datetime import UTC, datetime
 
     from app.agent import Agent
+    from app.config import get_settings
     from app.edgar import DATA_DIR
     from app.golden import load_golden
-    from app.llm import ModelNotConfigured, ModelOutputError, get_chat, get_embedder
+    from app.llm import ModelNotConfigured, get_chat, get_embedder
     from app.retrieve import DbRetriever
     from app.store import DbSources, connect, db_page_store
 
@@ -251,6 +250,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run the agent on the golden set and score it.")
     parser.add_argument("--ids", help="comma-separated golden ids (default: all)")
     parser.add_argument("--rescore", help="score a saved answers-*.json again (no model calls)")
+    parser.add_argument("--runtime-arn", help="ask the agent deployed on AgentCore Runtime instead")
     args = parser.parse_args(argv)
 
     items = load_golden()
@@ -276,62 +276,105 @@ def main(argv: list[str] | None = None) -> int:
         print(f"rescored {args.rescore} (model {saved['model']})")
         _print_summary(summary)
         return _verdict(summary)
+    if args.runtime_arn:
+        from app.runtime_client import RuntimeAnswerer, runtime_client
+        from app.store import connect_pg
+
+        answerer = RuntimeAnswerer(runtime_client(get_settings().aws_region), args.runtime_arn)
+        with connect_pg() as conn:  # the local database holds the same pages as Aurora (R19)
+            pages = db_page_store(conn)
+        label = f"runtime {args.runtime_arn.rsplit('/', 1)[-1]}"
+        return _run(items, answerer.answer, pages, label, lambda: None, DATA_DIR)
+
     try:
         chat, embedder = get_chat(), get_embedder()
     except ModelNotConfigured as exc:
         print(exc, file=sys.stderr)
         return 2
+    with connect() as conn:
+        agent = Agent(chat=chat, retriever=DbRetriever(conn, embedder), sources=DbSources(conn))
+        pages = db_page_store(conn)
+
+        def local(ticker: str, question: str) -> AnswerResult:
+            note = agent.answer(ticker, question)
+            return AnswerResult(note, retrieved=note.run.retrieved if note.run else [])
+
+        return _run(items, local, pages, chat.model, conn.rollback, DATA_DIR)
+
+
+def _run(
+    items: Sequence[GoldenItem],
+    answer: Callable[[str, str], AnswerResult],
+    pages: PageStore,
+    model: str,
+    on_error: Callable[[], None],
+    data_dir: Path,
+) -> int:
+    """Answer and score every item, print the summary and save every note (in-process or remote)."""
+    import json
+    import time
+    from collections import Counter
+    from datetime import UTC, datetime
+
+    from app.llm import ModelOutputError
 
     started = time.monotonic()
     scores: list[ItemScore] = []
     rows: list[dict[str, object]] = []
     dropped: Counter[str] = Counter()
     errors = 0
-    with connect() as conn:
-        agent = Agent(chat=chat, retriever=DbRetriever(conn, embedder), sources=DbSources(conn))
-        pages = db_page_store(conn)
-        for n, item in enumerate(items, start=1):
-            try:
-                note = agent.answer(item.ticker, item.question)
-                error = None
-            except ModelOutputError as exc:
-                note, error = Note(status="not_found"), str(exc)
-                errors += 1
-            except Exception as exc:  # e.g. HTTP error after retries: count it, keep the paid results
-                conn.rollback()
-                note, error = Note(status="not_found"), type(exc).__name__
-                errors += 1
-            retrieved = note.run.retrieved if note.run else []
-            s = score(item, AnswerResult(note, retrieved=retrieved), pages)
-            if error is not None:
-                s = errored(s)  # an error is never a correct "not found"
-            scores.append(s)
-            dropped.update(note.dropped)
-            rows.append({"id": item.id, "score": s.__dict__, "error": error, "note": note.model_dump()})
-            print(f"[{n}/{len(items)}] {item.id} {'ok' if s.accepted else 'no'}", flush=True)
+    runs: list[RunMeta] = []  # tokens and cost per note; works the same for remote answers
+    for n, item in enumerate(items, start=1):
+        try:
+            result = answer(item.ticker, item.question)
+            error = None
+        except ModelOutputError as exc:
+            result, error = AnswerResult(Note(status="not_found"), retrieved=[]), str(exc)
+            errors += 1
+        except Exception as exc:  # e.g. HTTP error after retries: count it, keep the paid results
+            on_error()
+            result, error = AnswerResult(Note(status="not_found"), retrieved=[]), type(exc).__name__
+            errors += 1
+        s = score(item, result, pages)
+        if error is not None:
+            s = errored(s)  # an error is never a correct "not found"
+        scores.append(s)
+        dropped.update(result.note.dropped)
+        if result.note.run:
+            runs.append(result.note.run)
+        rows.append({"id": item.id, "score": s.__dict__, "error": error, "note": result.note.model_dump()})
+        print(f"[{n}/{len(items)}] {item.id} {'ok' if s.accepted else 'no'}", flush=True)
 
     summary = summarise(scores)
     seconds = time.monotonic() - started
-    usage = chat.usage
-    print(f"\nmodel {chat.model}  items {summary.items}  errors {errors}")
+    runs = [
+        r.note.run for r in (AnswerResult(Note.model_validate(row["note"])) for row in rows) if r.note.run
+    ]
+    usage = {
+        "prompt_tokens": sum(r.prompt_tokens for r in runs),
+        "completion_tokens": sum(r.completion_tokens for r in runs),
+        "parse_retries": sum(r.parse_retries for r in runs),
+        "cost": round(sum(r.cost for r in runs), 6),
+        "embedding_tokens": sum(r.embedding_tokens for r in runs),
+    }
+    print(f"\nmodel {model}  items {summary.items}  errors {errors}")
     _print_summary(summary)
     print(f"dropped by reason         {dict(sorted(dropped.items()))}")
     print(
-        f"chat calls {usage.calls}  prompt {usage.prompt_tokens}  completion {usage.completion_tokens}  "
-        f"parse retries {usage.parse_retries}  cost ${usage.cost:.4f}  embed tokens {embedder.usage.tokens}  "
-        f"seconds {seconds:.0f}"
+        f"prompt {usage['prompt_tokens']}  completion {usage['completion_tokens']}  "
+        f"parse retries {usage['parse_retries']}  cost ${usage['cost']:.4f}  "
+        f"embed tokens {usage['embedding_tokens']}  seconds {seconds:.0f}"
     )
-    out = DATA_DIR / "evals"
+    out = data_dir / "evals"
     out.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
-    path = out / f"answers-{chat.model.replace('/', '_')}-{stamp}.json"
+    path = out / f"answers-{re.sub(r'[^A-Za-z0-9.-]+', '_', model)}-{stamp}.json"
     record = {
-        "model": chat.model,
+        "model": model,
         "summary": summary.__dict__,
         "errors": errors,
         "dropped": dict(dropped),
-        "usage": usage.__dict__,
-        "embed_tokens": embedder.usage.tokens,
+        "usage": usage,
         "seconds": round(seconds, 1),
         "items": rows,
     }
