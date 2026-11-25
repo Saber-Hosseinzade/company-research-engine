@@ -119,6 +119,11 @@ step (A6). No checkpointer or memory in v0.
 
 **API and page.** FastAPI: `POST /research`, `GET /filings/<accession>/pages/<n>`, `GET /` (one static
 HTML file with a small script, no framework). Compose adds an `app` service next to `db`.
+As built (M6): each request builds its own agent (chat client, embedder, connection), so usage never
+mixes between concurrent requests. `GET /ping` is a health check. The page view takes the excerpt as
+`?excerpt=` and marks its first whitespace- and case-tolerant match. Uvicorn runs without an access log,
+because those URLs carry filing text (R17). The app port is published on 127.0.0.1 only (R15). Nothing
+identifying the user is sent to OpenRouter (concern 6).
 
 **Settings (S2).** New: `SEC_USER_AGENT`, `EMBEDDING_MODEL_ID`. Added empty to
 `.env.example` and typed in `config.py`. `MODEL_PROVIDER=openrouter` for v0.

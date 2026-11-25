@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Filings research</title>
+<style>
+  :root { --fg: #1c1c1a; --muted: #6b6b66; --line: #e2e2dd; --bg: #fff; --soft: #f6f6f4; --accent: #2f5fb3; }
+  body { font: 15px/1.5 system-ui, sans-serif; color: var(--fg); background: var(--bg);
+         margin: 0 auto; max-width: 50rem; padding: 1.5rem 1rem; }
+  h1 { font-size: 1.3rem; margin: 0 0 .25rem; }
+  .muted { color: var(--muted); font-size: .9rem; }
+  form { display: grid; gap: .6rem; margin: 1.25rem 0; }
+  select, textarea, button { font: inherit; padding: .5rem; border: 1px solid var(--line); border-radius: 6px; }
+  textarea { min-height: 5rem; resize: vertical; }
+  button { background: var(--accent); color: #fff; border: 0; cursor: pointer; justify-self: start; padding: .5rem 1.2rem; }
+  button:disabled { opacity: .6; cursor: wait; }
+  .claim { border-top: 1px solid var(--line); padding: .75rem 0; }
+  .figures, .cites { margin: .3rem 0 0; padding-left: 1.2rem; font-size: .9rem; }
+  .cites a { color: var(--accent); }
+  .excerpt { color: var(--muted); font-style: italic; }
+  .error { color: #a32020; }
+  .disclaimer { background: var(--soft); padding: .75rem; border-radius: 6px; font-size: .9rem; }
+</style>
+</head>
+<body>
+<h1>Filings research</h1>
+<p class="muted">Answers from the company's 10-K filings since 2024. Every claim cites a filing page.</p>
+
+<form id="ask">
+  <label>Company
+    <select id="ticker" required>
+      <option value="NVDA">NVIDIA (NVDA)</option>
+      <option value="AMD">AMD (AMD)</option>
+      <option value="META">Meta Platforms (META)</option>
+      <option value="GOOG">Alphabet (GOOG)</option>
+      <option value="AMZN">Amazon (AMZN)</option>
+    </select>
+  </label>
+  <label>Question
+    <textarea id="question" maxlength="1000" required placeholder="How did data center revenue change in the last fiscal year?"></textarea>
+  </label>
+  <button id="submit" type="submit">Ask</button>
+</form>
+
+<section id="result" aria-live="polite"></section>
+
+<script>
+// All model and filing text is set with textContent, never parsed as HTML (spec R14).
+const result = document.getElementById("result");
+
+function el(tag, text, cls) {
+  const node = document.createElement(tag);
+  if (text !== undefined) node.textContent = text;
+  if (cls) node.className = cls;
+  return node;
+}
+
+function pageLink(c) {
+  const url = "/filings/" + encodeURIComponent(c.accession) + "/pages/" + encodeURIComponent(c.page)
+    + "?excerpt=" + encodeURIComponent(c.excerpt);
+  const a = el("a", (c.form || "Filing") + " filed " + (c.filing_date || "?") + ", page " + c.page);
+  a.href = url;
+  a.target = "_blank";
+  a.rel = "noopener";
+  return a;
+}
+
+function render(note) {
+  result.replaceChildren();
+  if (note.status === "not_found") {
+    result.append(el("p", "The filings in scope do not answer this question."));
+  } else {
+    if (note.summary) result.append(el("p", note.summary));
+    for (const claim of note.claims) {
+      const box = el("div", undefined, "claim");
+      box.append(el("div", claim.text));
+      if (claim.figures.length) {
+        const figs = el("ul", undefined, "figures");
+        for (const f of claim.figures) {
+          const parts = [f.value + (f.unit ? " " + f.unit : "")];
+          if (f.computed) parts.push("computed: " + f.computed);
+          if (f.period) parts.push(f.period);
+          figs.append(el("li", parts.join(" · ")));
+        }
+        box.append(figs);
+      }
+      const cites = el("ul", undefined, "cites");
+      for (const c of claim.citations) {
+        const li = el("li");
+        li.append(pageLink(c), " ", el("span", "“" + c.excerpt + "”", "excerpt"));
+        cites.append(li);
+      }
+      box.append(cites);
+      result.append(box);
+    }
+  }
+  if (note.disclaimer) result.append(el("p", note.disclaimer, "disclaimer"));
+  if (note.run) {
+    result.append(el("p", "Model " + note.run.model + " · " + note.run.seconds + " s · $"
+      + note.run.cost.toFixed(4), "muted"));
+  }
+}
+
+document.getElementById("ask").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const button = document.getElementById("submit");
+  button.disabled = true;
+  result.replaceChildren(el("p", "Researching… this takes about 10 seconds.", "muted"));
+  try {
+    const response = await fetch("/research", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        ticker: document.getElementById("ticker").value,
+        question: document.getElementById("question").value,
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      const detail = typeof data.detail === "string" ? data.detail : "The request was not valid.";
+      result.replaceChildren(el("p", detail, "error"));
+    } else {
+      render(data);
+    }
+  } catch (err) {
+    result.replaceChildren(el("p", "The server could not be reached.", "error"));
+  } finally {
+    button.disabled = false;
+  }
+});
+</script>
+</body>
+</html>

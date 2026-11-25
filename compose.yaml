@@ -1,6 +1,18 @@
-# Local Postgres with pgvector, for projects that need a database or vector store.
-#   make db-up / make db-down
+# Local Postgres with pgvector and the v0 API.
+#   make db-up / make db-down; make up starts both (the app on http://127.0.0.1:8000).
 services:
+  app:
+    build: .
+    ports: ["127.0.0.1:8000:8000"]   # localhost only (spec R15); no auth in v0
+    env_file:
+      - path: .env.local
+        required: false
+    environment:
+      DATABASE_URL: postgresql://app:app@db:5432/app
+    depends_on:
+      db:
+        condition: service_healthy
+
   db:
     image: pgvector/pgvector:pg17
     environment:
