@@ -77,4 +77,17 @@ def test_refuses_chunks_from_another_embedding_model(
     # The runtime would embed queries with another model and vector search would find nothing.
     with pytest.raises(CopyRefused, match="embedded with fake"):
         copy(source, target, "amazon/titan-embed-text-v2")
-    assert target.execute("SELECT count(*) FROM filings").fetchone() == (0,)
+    # Refused before any write: not even the schema was applied to the target.
+    tables = target.execute(
+        "SELECT count(*) FROM information_schema.tables WHERE table_schema = current_schema()"
+    ).fetchone()
+    assert tables == (0,)
+
+
+def test_replace_with_another_model_keeps_the_target(
+    source: psycopg.Connection, target: DataApiConnection
+) -> None:
+    copy(source, target, "fake")
+    with pytest.raises(CopyRefused, match="embedded with fake"):
+        copy(source, target, "amazon/titan-embed-text-v2", replace=True)
+    assert counts(target) == (2, 12, 12)  # nothing truncated

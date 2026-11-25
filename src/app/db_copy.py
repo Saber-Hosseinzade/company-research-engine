@@ -89,13 +89,7 @@ def copy(
 
     `embedding_model` is the model the deployed runtime embeds queries with; the chunks must match it.
     """
-    apply_schema(target)
-    if counts(target)[0] or counts(target)[2]:
-        if not replace:
-            raise CopyRefused("The target database already holds filings. Use --replace to overwrite it.")
-        target.execute("TRUNCATE filings CASCADE")
-        target.execute("ALTER TABLE chunks DROP COLUMN IF EXISTS embedding")
-
+    # Every check before the first write: a refused copy leaves the target as it was.
     models = source.execute(
         "SELECT DISTINCT embedding_model FROM chunks WHERE strategy = %s AND embedding_model IS NOT NULL",
         (AGENT_STRATEGY,),
@@ -110,6 +104,14 @@ def copy(
             f"The local chunks were embedded with {models[0][0]},"
             f" but EMBEDDING_MODEL_ID is {embedding_model}."
         )
+
+    apply_schema(target)
+    if counts(target)[0] or counts(target)[2]:
+        if not replace:
+            raise CopyRefused("The target database already holds filings. Use --replace to overwrite it.")
+        target.execute("TRUNCATE filings CASCADE")
+        target.execute("ALTER TABLE chunks DROP COLUMN IF EXISTS embedding")
+
     ensure_embedding_column(target, dim, embedding_model)
 
     for batch in batches(source.execute(FILINGS).fetchall()):

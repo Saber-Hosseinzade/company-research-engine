@@ -53,6 +53,9 @@ Supabase
   TLS connection with a 10-second timeout and `SELECT 1`. It logs `supabase reachable seconds=…` or
   `supabase unreachable error=<type>`. The check never stops the app from starting. No Supabase data is
   read or written in this step.
+  The check uses `sslmode=require` (encrypted, server certificate not verified); certificate
+  verification (`verify-full` with the Supabase CA) comes with the step that reads Supabase data
+  (PR #14 review).
 
 AWS (CDK, Python, `infra/`)
 
