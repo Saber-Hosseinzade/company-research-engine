@@ -18,6 +18,7 @@ import psycopg
 
 from app.ingest import apply_schema
 from app.llm import Embedder
+from app.store import Conn
 
 log = logging.getLogger(__name__)
 
@@ -99,7 +100,7 @@ def build_chunks(conn: psycopg.Connection, rebuild: bool = False) -> dict[str, i
     return counts
 
 
-def embedding_dimension(conn: psycopg.Connection) -> int | None:
+def embedding_dimension(conn: Conn) -> int | None:
     row = conn.execute(
         "SELECT atttypmod FROM pg_attribute WHERE attrelid = 'chunks'::regclass AND attname = 'embedding'"
         " AND NOT attisdropped"
@@ -111,7 +112,7 @@ class EmbeddingMismatch(RuntimeError):
     pass
 
 
-def ensure_embedding_column(conn: psycopg.Connection, dim: int, model: str) -> None:
+def ensure_embedding_column(conn: Conn, dim: int, model: str) -> None:
     current = embedding_dimension(conn)
     if current is None:
         with conn.transaction():
@@ -169,13 +170,13 @@ def embed_chunks(conn: psycopg.Connection, embedder: Embedder, batch: int = 32, 
 
 def main(argv: list[str] | None = None) -> int:
     from app.llm import ModelNotConfigured, get_embedder
-    from app.store import connect
+    from app.store import connect_pg
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s")
     args = sys.argv[1:] if argv is None else argv
     command = args[0] if args else "chunk"
     started = time.monotonic()
-    with connect() as conn:
+    with connect_pg() as conn:
         if command == "chunk":
             counts = build_chunks(conn, rebuild="--rebuild" in args)
             print(
