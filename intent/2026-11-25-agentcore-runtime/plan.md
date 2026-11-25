@@ -165,3 +165,7 @@ is built and tested now; R12–R17 deploy, R10 and R19 measurements wait for it.
   `tests/test_runtime_client.py`, not `tests/test_eval_v0.py`; `src/app/validate.py` needed no change.
 - **Both-modes DB tests** compare results through `DataApiConnection` (fake client on local Postgres)
   with psycopg in one test, rather than parametrising every `tests_db` test.
+- **Deployed models come from the local settings (PR review).** `infra/main.py` reads `MODEL_ID` and
+  `EMBEDDING_MODEL_ID` from `.env.local` or the environment instead of hard-coded defaults, and
+  `make db-copy` refuses chunks embedded with a model other than `EMBEDDING_MODEL_ID`, so the runtime
+  always embeds queries with the chunks' model.

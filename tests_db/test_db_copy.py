@@ -39,7 +39,7 @@ def target() -> Iterator[DataApiConnection]:
 
 
 def test_copies_everything_the_agent_reads(source: psycopg.Connection, target: DataApiConnection) -> None:
-    assert copy(source, target) == counts(source) == (2, 12, 12)
+    assert copy(source, target, "fake") == counts(source) == (2, 12, 12)
     assert db_page_store(target) == db_page_store(source)
     accession = "0000002488-26-000018"
     assert DbSources(target).filing(accession) == DbSources(source).filing(accession)
@@ -65,7 +65,16 @@ def test_copies_everything_the_agent_reads(source: psycopg.Connection, target: D
 def test_refuses_a_non_empty_target_unless_replace(
     source: psycopg.Connection, target: DataApiConnection
 ) -> None:
-    copy(source, target)
+    copy(source, target, "fake")
     with pytest.raises(CopyRefused):
-        copy(source, target)
-    assert copy(source, target, replace=True) == (2, 12, 12)
+        copy(source, target, "fake")
+    assert copy(source, target, "fake", replace=True) == (2, 12, 12)
+
+
+def test_refuses_chunks_from_another_embedding_model(
+    source: psycopg.Connection, target: DataApiConnection
+) -> None:
+    # The runtime would embed queries with another model and vector search would find nothing.
+    with pytest.raises(CopyRefused, match="embedded with fake"):
+        copy(source, target, "amazon/titan-embed-text-v2")
+    assert target.execute("SELECT count(*) FROM filings").fetchone() == (0,)

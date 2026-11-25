@@ -90,7 +90,7 @@ up:  ## Build and start the app and Postgres in Docker (http://127.0.0.1:8000)
 AWS_ENV = AWS_PROFILE=sandbox AWS_REGION=eu-central-1 AWS_DEFAULT_REGION=eu-central-1
 CDK = cd infra && npm ci --no-audit --no-fund --silent && $(AWS_ENV) npx cdk
 OUTPUTS = infra/cdk-outputs.json
-output = $(shell python3 -c "import json;print(json.load(open('$(OUTPUTS)'))['CompanyResearchEngine']['$(1)'])" 2>/dev/null)
+output = $(or $(shell python3 -c "import json;print(json.load(open('$(OUTPUTS)'))['CompanyResearchEngine']['$(1)'])" 2>/dev/null),$(error No $(1) in $(OUTPUTS): run `make deploy` first))
 TICKER ?= NVDA
 Q ?= What was total revenue in the latest fiscal year?
 

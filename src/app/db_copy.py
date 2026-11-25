@@ -82,8 +82,13 @@ def counts(conn: Conn, strategy: str = AGENT_STRATEGY) -> tuple[int, int, int]:
     )
 
 
-def copy(source: psycopg.Connection, target: Target, replace: bool = False) -> tuple[int, int, int]:
-    """Copy everything the agent reads; returns the (filings, pages, chunks) counts on the target."""
+def copy(
+    source: psycopg.Connection, target: Target, embedding_model: str, replace: bool = False
+) -> tuple[int, int, int]:
+    """Copy everything the agent reads; returns the (filings, pages, chunks) counts on the target.
+
+    `embedding_model` is the model the deployed runtime embeds queries with; the chunks must match it.
+    """
     apply_schema(target)
     if counts(target)[0] or counts(target)[2]:
         if not replace:
@@ -100,7 +105,12 @@ def copy(source: psycopg.Connection, target: Target, replace: bool = False) -> t
         raise CopyRefused(
             f"Expected one embedding model in the local {AGENT_STRATEGY} chunks, found {len(models)}."
         )
-    ensure_embedding_column(target, dim, str(models[0][0]))
+    if str(models[0][0]) != embedding_model:
+        raise CopyRefused(
+            f"The local chunks were embedded with {models[0][0]},"
+            f" but EMBEDDING_MODEL_ID is {embedding_model}."
+        )
+    ensure_embedding_column(target, dim, embedding_model)
 
     for batch in batches(source.execute(FILINGS).fetchall()):
         target.batch(INSERT_FILING, batch)
@@ -129,6 +139,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     settings = get_settings()
+    if not settings.embedding_model_id:
+        print("Set EMBEDDING_MODEL_ID: the model the deployed runtime embeds queries with.", file=sys.stderr)
+        return 2
     if not (settings.db_cluster_arn and settings.db_secret_arn):
         print("Set DB_CLUSTER_ARN and DB_SECRET_ARN (the stack outputs) to copy to Aurora.", file=sys.stderr)
         return 2
@@ -140,7 +153,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     with connect_pg(settings) as source:  # DATABASE_URL: the local database
         try:
-            filings, pages, chunks = copy(source, target, replace=args.replace)
+            filings, pages, chunks = copy(source, target, settings.embedding_model_id, replace=args.replace)
         except CopyRefused as exc:
             print(exc, file=sys.stderr)
             return 1

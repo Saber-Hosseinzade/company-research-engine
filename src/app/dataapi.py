@@ -16,7 +16,7 @@ import re
 import time
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
-from datetime import date
+from datetime import date, datetime
 from typing import Any
 
 from app.store import DatabaseUnavailable
@@ -50,6 +50,8 @@ def encode(value: object) -> dict[str, Any]:
         return {"value": {"longValue": value}}
     if isinstance(value, float):
         return {"value": {"doubleValue": value}}
+    if isinstance(value, datetime):
+        raise TypeError("datetime parameters are not supported; send a date or text")
     if isinstance(value, date):
         return {"value": {"stringValue": value.isoformat()}, "typeHint": "DATE"}
     if isinstance(value, str):

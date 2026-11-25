@@ -1,6 +1,6 @@
 """Offline tests for the RDS Data API adapter (AgentCore spec R7, R8) on a fake `rds-data` client."""
 
-from datetime import date
+from datetime import date, datetime
 from typing import Any
 
 import pytest
@@ -79,7 +79,7 @@ def test_parameter_types() -> None:
     ]
 
 
-@pytest.mark.parametrize("bad", [[["a", "b"]], [object()]])
+@pytest.mark.parametrize("bad", [[["a", "b"]], [object()], [datetime(2026, 2, 25, 12, 0)]])
 def test_arrays_and_unknown_types_are_refused(bad: list[object]) -> None:
     with pytest.raises(TypeError):
         parameters("%s", bad)
