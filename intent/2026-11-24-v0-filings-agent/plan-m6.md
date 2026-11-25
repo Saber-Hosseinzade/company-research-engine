@@ -102,4 +102,6 @@ already and serves FastAPI's `TestClient`; it is added as a direct dev dependenc
 - One real question in the container (NVDA, change in Data Center revenue in fiscal 2026): answered,
   2 claims, 0 dropped, 9.2 s, 13,032 prompt and 1,085 completion tokens, $0.0369. The container took
   `MODEL_ID` from `.env.local`, which named Sonnet 5.5, not the Haiku 5.5 used for the baseline.
+- The same question again after `MODEL_ID` in `.env.local` was set to Haiku 5.5: answered, 1 claim,
+  0 dropped, 9.8 s, $0.0022.
 - App logs carry ticker, status, counts, tokens and seconds only; no question or note text.
