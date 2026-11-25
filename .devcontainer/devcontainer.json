@@ -72,6 +72,7 @@
         // Containers, CI
         "ms-azuretools.vscode-containers",
         "github.vscode-github-actions",
+        "github.vscode-pull-request-github",
         // Editor
         "usernamehw.errorlens",
         "anthropic.claude-code"
