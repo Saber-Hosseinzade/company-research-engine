@@ -5,15 +5,24 @@
   "build": { "dockerfile": "Dockerfile" },
 
   "features": {
+    // Node 24: the newest Node the AWS CDK CLI supports, for the AgentCore step's infra/ (planned, not yet
+    // in the repo). Installed before Claude Code, so that
+    // feature finds Node and doesn't add its own older one.
+    "ghcr.io/devcontainers/features/node:1": { "version": "24" },
     "ghcr.io/devcontainers/features/aws-cli:1": { },
     "ghcr.io/devcontainers/features/github-cli:1": { },
     // Its own Docker daemon inside the container: builds images and runs compose.yaml.
     // Isolated from the host's Docker, so other containers on the machine stay out of reach.
     // Images are cached per project; free space with `docker system prune -a`.
-    "ghcr.io/devcontainers/features/docker-in-docker:4.1.3": { },
+    // moby: false installs Docker CE: Moby packages don't exist for Debian trixie (the base image).
+    "ghcr.io/devcontainers/features/docker-in-docker:4.1.3": { "moby": false },
     // Claude Code CLI + the VS Code extension (the feature adds both)
     "ghcr.io/anthropics/devcontainer-features/claude-code:1.0": { }
   },
+  "overrideFeatureInstallOrder": [
+    "ghcr.io/devcontainers/features/node",
+    "ghcr.io/anthropics/devcontainer-features/claude-code"
+  ],
   // Runs on the host before the build: creates the mounted folders (the container won't start without
   // them) and the git-ignored PROJECT_CONTEXT.md from its template.
   "initializeCommand": "sh .devcontainer/initialize.sh ${localWorkspaceFolderBasename}",
@@ -64,6 +73,7 @@
         // Containers, CI
         "ms-azuretools.vscode-containers",
         "github.vscode-github-actions",
+        "github.vscode-pull-request-github",
         // Editor
         "usernamehw.errorlens",
         "anthropic.claude-code"

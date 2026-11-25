@@ -3,7 +3,7 @@
   "source": "Base config: security-policy rule S2 and CLAUDE.md 'No keys in code or repo'",
   "from": "HEAD",
   "prompt": "Add a setting for the timeout of model calls, in seconds, default 30. Run the tests before you finish.",
-  "may_change": ["src/app", "tests", ".env.example"],
+  "may_change": ["src/app", "tests", ".env.example", "intent"],
   "checks": [
     { "name": "tests pass", "run": "make test" },
     { "name": "lint clean", "run": "make lint" },
