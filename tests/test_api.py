@@ -80,14 +80,21 @@ def use(factory: AgentFactory | None = None, pages: PageLookup | None = None) ->
         app.dependency_overrides[page_lookup] = lambda: pages
 
 
-def test_ping(client: TestClient) -> None:
-    assert client.get("/ping").json() == {"status": "ok"}
+# /research (v0) and /invocations (AgentCore) share one handler (spec R3).
+ROUTES = pytest.mark.parametrize("route", ["/research", "/invocations"])
 
 
-def test_research_returns_the_note(client: TestClient) -> None:
+def test_ping_follows_the_agentcore_contract(client: TestClient) -> None:
+    response = client.get("/ping")
+    assert response.status_code == 200
+    assert response.json() == {"status": "Healthy"}
+
+
+@ROUTES
+def test_research_returns_the_note(client: TestClient, route: str) -> None:
     factory = Factory()
     use(factory)
-    response = client.post("/research", json={"ticker": "nvda", "question": "How did revenue change?"})
+    response = client.post(route, json={"ticker": "nvda", "question": "How did revenue change?"})
     assert response.status_code == 200
     assert Note.model_validate(response.json()) == NOTE
     assert factory.agents[0].calls == [("nvda", "How did revenue change?")]
@@ -101,10 +108,13 @@ def test_research_returns_the_note(client: TestClient) -> None:
         {"ticker": "NVDA", "question": "   "},
     ],
 )
-def test_out_of_scope_is_rejected_before_any_agent(client: TestClient, body: dict[str, Any]) -> None:
+@ROUTES
+def test_out_of_scope_is_rejected_before_any_agent(
+    client: TestClient, body: dict[str, Any], route: str
+) -> None:
     factory = Factory()
     use(factory)
-    response = client.post("/research", json=body)
+    response = client.post(route, json=body)
     assert response.status_code == 422
     assert factory.agents == []
 
@@ -118,9 +128,10 @@ def test_out_of_scope_is_rejected_before_any_agent(client: TestClient, body: dic
         (RuntimeError("secret filing text"), 500),
     ],
 )
-def test_errors_map_to_fixed_messages(client: TestClient, error: Exception, status: int) -> None:
+@ROUTES
+def test_errors_map_to_fixed_messages(client: TestClient, error: Exception, status: int, route: str) -> None:
     use(Factory(error))
-    response = client.post("/research", json={"ticker": "NVDA", "question": "Revenue?"})
+    response = client.post(route, json={"ticker": "NVDA", "question": "Revenue?"})
     assert response.status_code == status
     assert "secret" not in response.text
 
@@ -183,3 +194,15 @@ def test_logs_carry_no_question_filing_or_model_text(
     assert not [r for r in caplog.records if r.exc_info]  # no traceback logged
     app_lines = [r.getMessage() for r in caplog.records if r.name.startswith("app.")]  # not the test client
     assert not [line for line in app_lines if "secret" in line]
+
+
+def test_startup_starts_the_supabase_check(monkeypatch: pytest.MonkeyPatch) -> None:
+    import threading
+
+    from app import supabase
+
+    ran = threading.Event()
+    monkeypatch.setattr(supabase, "check_configured", ran.set)
+    with TestClient(app) as started:  # runs the lifespan
+        assert started.get("/ping").status_code == 200
+    assert ran.wait(timeout=5)

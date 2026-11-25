@@ -9,7 +9,6 @@ dependencies = [
     "pydantic>=2",
     "pydantic-settings",
     "boto3",
-    "edgartools>=6.3.0",
     "lxml>=6.1.3",
     "psycopg[binary]>=3.3.9",
     "openai>=3.58.0",
@@ -29,10 +28,19 @@ dev = [
     "ipykernel",        # Jupyter notebooks with this venv
     "lxml-stubs>=0.5.1",
 ]
+fetch = [
+    "edgartools>=6.3.0",
+]
+infra = [
+    "aws-cdk-lib>=2.278.0",
+    "constructs>=10.8.1",
+]
 
 [tool.uv]
 # Installed into the venv so tests import the package as built (src layout).
 package = true
+# Local `uv sync` and CI get every group; the image installs none (Dockerfile, spec R2).
+default-groups = ["dev", "fetch", "infra"]
 
 [build-system]
 requires = ["hatchling"]
@@ -43,7 +51,7 @@ packages = ["src/app"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["maintain"]  # repo tooling outside the app package
+pythonpath = ["maintain", "infra"]  # repo tooling and the CDK app, outside the app package
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 
@@ -53,10 +61,22 @@ branch = true
 
 [tool.mypy]
 python_version = "3.14"
-files = ["src", "tests", "tests_db", "maintain"]
-mypy_path = "maintain"
+files = ["src", "tests", "tests_db", "maintain", "infra"]
+mypy_path = "maintain:infra"
 strict = true
 plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+# boto3 ships no type hints; calls go through small typed wrappers (app.dataapi, app.config).
+module = ["boto3", "boto3.*", "botocore", "botocore.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# aws-cdk-lib is too large for mypy to analyse in the dev container (killed for memory); its calls are
+# checked by synthesising the stack in tests/test_infra.py instead.
+module = ["aws_cdk", "aws_cdk.*", "constructs", "constructs.*", "jsii", "jsii.*"]
+follow_imports = "skip"
+follow_untyped_imports = false
 
 [tool.ruff]
 line-length = 110

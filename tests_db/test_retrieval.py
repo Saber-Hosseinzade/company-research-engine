@@ -151,3 +151,27 @@ def test_db_retriever_returns_pages_of_one_company_with_details(loaded: psycopg.
     first = pages[0]
     assert (first.form, first.filing_date, first.report_date) == ("10-K", "2026-02-04", "2025-12-27")
     assert first.text  # full page text, not a chunk
+
+
+def test_data_api_mode_returns_what_psycopg_returns(loaded: psycopg.Connection, data_api: Any) -> None:
+    """The same SQL through DataApiConnection (on the local database) gives the same results (R7)."""
+    from app.retrieve import DbRetriever
+    from app.store import DbSources, db_page_store, page_view
+
+    embedder = FakeEmbedder()
+    embed_chunks(loaded, embedder)
+    for mode in ("vector", "fts", "hybrid"):
+        for ticker, query in (("AMD", "widgets"), ("NVDA", "revenue")):
+            vector = embedder.embed([query])[0]
+            local = search(loaded, ticker, "window", query, vector, "fake", mode=mode)
+            remote = search(data_api, ticker, "window", query, vector, "fake", mode=mode)
+            assert local and remote == local
+    queries = ["widgets", "revenue"]
+    assert DbRetriever(data_api, embedder).retrieve("amd", queries) == DbRetriever(loaded, embedder).retrieve(
+        "amd", queries
+    )
+    accession = "0000002488-26-000018"
+    assert DbSources(data_api).filing(accession) == DbSources(loaded).filing(accession)
+    assert DbSources(data_api).page_text(accession, 3) == DbSources(loaded).page_text(accession, 3)
+    assert page_view(data_api, accession, 3) == page_view(loaded, accession, 3)
+    assert db_page_store(data_api) == db_page_store(loaded)

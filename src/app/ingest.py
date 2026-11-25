@@ -15,6 +15,7 @@ from importlib import resources
 import psycopg
 
 from app.pages import Filing, load_filings
+from app.store import Conn
 
 log = logging.getLogger(__name__)
 
@@ -104,10 +105,21 @@ def link_amendments(rows: Iterable[FilingRow]) -> list[FilingRow]:
     ]
 
 
-def apply_schema(conn: psycopg.Connection) -> None:
+def schema_statements() -> list[str]:
+    """schema.sql split into single statements: the RDS Data API runs one per call.
+
+    Comments are dropped first; the file has no `;` inside a statement body
+    (checked by the statement count in tests/test_dataapi.py).
+    """
     sql = resources.files("app").joinpath("schema.sql").read_text(encoding="utf-8")
+    lines = [line.split("--", 1)[0] for line in sql.splitlines()]
+    return [s.strip() for s in "\n".join(lines).split(";") if s.strip()]
+
+
+def apply_schema(conn: Conn) -> None:
     with conn.transaction():
-        conn.execute(sql)  # trusted DDL file shipped with the package
+        for statement in schema_statements():
+            conn.execute(statement)  # trusted DDL file shipped with the package
 
 
 def write_filing(conn: psycopg.Connection, row: FilingRow, pages: list[PageRow]) -> None:
@@ -158,14 +170,14 @@ def ingest(conn: psycopg.Connection, filings: list[Filing]) -> tuple[int, int]:
 
 
 def main() -> int:
-    from app.store import connect
+    from app.store import connect_pg
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s")
     filings = load_filings()
     if not filings:
         print("No filings in data/filings. Run `make fetch` first.")
         return 1
-    with connect() as conn:
+    with connect_pg() as conn:
         n_filings, n_pages = ingest(conn, filings)
     print(f"filings={n_filings} pages={n_pages}")
     return 0

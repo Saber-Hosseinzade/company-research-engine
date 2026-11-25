@@ -8,10 +8,9 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Literal, Protocol
 
-import psycopg
-
 from app.chunks import to_vector
 from app.llm import Embedder
+from app.store import Conn
 
 Mode = Literal["vector", "fts", "hybrid"]
 CANDIDATES = 30
@@ -29,7 +28,7 @@ class Hit:
 
 
 def vector_candidates(
-    conn: psycopg.Connection,
+    conn: Conn,
     ticker: str,
     strategy: str,
     query_vector: Sequence[float],
@@ -49,7 +48,7 @@ def vector_candidates(
 
 
 def fts_candidates(
-    conn: psycopg.Connection, ticker: str, strategy: str, query: str, n: int = CANDIDATES
+    conn: Conn, ticker: str, strategy: str, query: str, n: int = CANDIDATES
 ) -> list[tuple[int, str, int]]:
     # Any query term may match (OR), ranked by ts_rank; plainto_tsquery alone would require every term.
     return [
@@ -82,7 +81,7 @@ def fuse(rankings: Sequence[Sequence[tuple[int, str, int]]], k: int = 10) -> lis
 
 
 def search(
-    conn: psycopg.Connection,
+    conn: Conn,
     ticker: str,
     strategy: str,
     query: str,
@@ -140,7 +139,7 @@ def merge_page_rankings(rankings: Sequence[Sequence[Hit]], n: int = PAGES_FOR_DR
 class DbRetriever:
     """Hybrid search for each query, fused across queries, with page text and filing details."""
 
-    conn: psycopg.Connection
+    conn: Conn
     embedder: Embedder
     strategy: str = AGENT_STRATEGY
     k: int = 10

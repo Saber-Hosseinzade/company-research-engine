@@ -3,7 +3,9 @@
 - `POST /research` answers one question with a fresh agent per request, so each request has its own
   usage counters and concurrent requests never mix tokens (plan-m6).
 - `GET /filings/<accession>/pages/<n>` shows a stored page as escaped text with the excerpt marked (R14).
-- `GET /` serves the static question page; `GET /ping` is a health check.
+- `POST /invocations` is the AgentCore Runtime entry point: the same body, handler and errors (R3 of the
+  AgentCore spec). `GET /ping` is the health check in AgentCore's format (R4).
+- `GET /` serves the static question page.
 
 Responses and logs never carry model output in an error, and logs carry no question or filing text (R17).
 Nothing identifying the user is sent to OpenRouter (spec concern 6).
@@ -12,9 +14,10 @@ Nothing identifying the user is sent to OpenRouter (spec concern 6).
 import html
 import logging
 import re
+import threading
 import time
-from collections.abc import Callable, Iterator
-from contextlib import AbstractContextManager, contextmanager
+from collections.abc import AsyncIterator, Callable, Iterator
+from contextlib import AbstractContextManager, asynccontextmanager, contextmanager
 from pathlib import Path
 from typing import Annotated
 
@@ -69,12 +72,21 @@ def page_lookup() -> PageLookup:
     return db_page
 
 
-app = FastAPI(title="company-research-engine", docs_url=None, redoc_url=None)
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    # In the background: /ping answers at once, and the check never blocks or stops startup (R11).
+    from app.supabase import check_configured
+
+    threading.Thread(target=check_configured, name="supabase-check", daemon=True).start()
+    yield
+
+
+app = FastAPI(title="company-research-engine", docs_url=None, redoc_url=None, lifespan=lifespan)
 
 
 @app.get("/ping")
 def ping() -> dict[str, str]:
-    return {"status": "ok"}
+    return {"status": "Healthy"}
 
 
 @app.get("/")
@@ -84,6 +96,15 @@ def index() -> FileResponse:
 
 @app.post("/research")
 def research(body: ResearchRequest, factory: Annotated[AgentFactory, Depends(agent_factory)]) -> Note:
+    return answer(body, factory, "research")
+
+
+@app.post("/invocations")
+def invocations(body: ResearchRequest, factory: Annotated[AgentFactory, Depends(agent_factory)]) -> Note:
+    return answer(body, factory, "invocations")
+
+
+def answer(body: ResearchRequest, factory: AgentFactory, path: str) -> Note:
     began = time.monotonic()
     status = 200
     try:
@@ -108,7 +129,7 @@ def research(body: ResearchRequest, factory: Annotated[AgentFactory, Depends(age
         status = exc.status_code
         raise
     finally:
-        log.info("request path=research status=%d seconds=%.1f", status, time.monotonic() - began)
+        log.info("request path=%s status=%d seconds=%.1f", path, status, time.monotonic() - began)
 
 
 def highlight(text: str, excerpt: str) -> str:

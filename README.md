@@ -33,10 +33,17 @@ make up                      # build and start the app: http://127.0.0.1:8000
 
 The page at `/` takes a company and a question and shows the note; each citation opens the stored filing
 page with the quoted text highlighted and a link to the original on EDGAR. The API is
-`POST /research {"ticker": "NVDA", "question": "..."}`, which returns the note as JSON. `make serve` runs
-the same app outside Docker with reload.
+`POST /research {"ticker": "NVDA", "question": "..."}`, which returns the note as JSON (`POST /invocations`
+is the same call under the name AgentCore Runtime uses). `make serve` runs the same app outside Docker
+with reload. Local Postgres is PostgreSQL 18 with pgvector.
 
 The model is configuration: `MODEL_ID` in `.env.local` (v0 builds only `MODEL_PROVIDER=openrouter`).
+
+## Deploy to AgentCore Runtime (in progress)
+
+`infra/` holds a CDK stack that runs the same image on Amazon Bedrock AgentCore Runtime, with the
+filings in Aurora PostgreSQL Serverless v2 reached through the RDS Data API. It has not been deployed
+yet. Steps and teardown: [infra/README.md](infra/README.md).
 
 ## Development
 
