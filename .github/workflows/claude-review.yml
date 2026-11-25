@@ -51,6 +51,11 @@ jobs:
             Review this pull request following REVIEW.md at the repo root. Diff against the base with
             `git diff origin/${{ github.base_ref }}...HEAD`. Read the policy skills and the change's
             spec.md and plan.md as REVIEW.md describes. Do not edit files.
+            Read the PR description and earlier comments first with
+            `gh pr view ${{ github.event.pull_request.number }} --comments`: they hold the author's
+            measured results and reasons, and replies to earlier reviews. Don't repeat a finding that
+            the description or an earlier reply already answers. Raise it again only if you disagree
+            with that answer, and then say why.
             Post the result as one PR comment with `gh pr comment ${{ github.event.pull_request.number }} --body-file <file>`.
           # The repo defaults to plan mode; review needs no edits but must run git and gh.
           claude_args: >-
