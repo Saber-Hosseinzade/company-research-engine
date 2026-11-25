@@ -1,4 +1,5 @@
-# Claude PR review: runs the REVIEW.md passes on every pull request to main and posts the findings
+# Claude PR review: runs the REVIEW.md passes on every pull request to main, drafts included (on open, on
+# each push and when marked ready), and posts the findings
 # as a PR comment. Findings inform the human reviewer; branch protection still needs a human approval.
 # Needs the repository secret CLAUDE_CODE_OAUTH_TOKEN (Claude subscription, from `claude setup-token`) or ANTHROPIC_API_KEY;
 # without it the job is skipped with a notice.
@@ -21,7 +22,6 @@ concurrency:
 
 jobs:
   review:
-    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
